@@ -1,0 +1,36 @@
+# UnityLocalizer Requirements
+# Python 3.10+ (CI runs the test suite on Python 3.10, 3.12 and 3.14)
+
+# GUI Framework
+PyQt6>=6.7.0
+PyQt6-Qt6>=6.7.0
+
+# Unity Assets Parsing & Extraction
+UnityPy>=1.25.0
+
+# Archive extraction (TMP font AssetBundle archive is .7z)
+py7zr>=0.22.0
+
+# Static RTL shaping (Arabic letter joining + bidi visual reordering)
+arabic-reshaper>=3.0.0
+python-bidi>=0.6.0
+
+# Optional: rebuilds stripped MonoBehaviour TypeTrees for field-aware harvesting.
+# Without it the asset harvester falls back to raw length-prefixed scanning.
+# TypeTreeGeneratorAPI>=0.1.0
+
+# Translation Engines & AI APIs
+google-genai>=1.0.0
+openai>=1.50.0
+requests>=2.31.0
+PySocks>=1.7.1
+
+# PE metadata (Mono #US strings, Unity version) and fuzzy translation memory
+pefile>=2024.8.0
+rapidfuzz>=3.9.0
+
+# Testing
+pytest>=8.0.0
+
+# Packaging
+pyinstaller>=6.5.0
