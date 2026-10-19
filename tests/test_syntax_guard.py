@@ -1,0 +1,108 @@
+# -*- coding: utf-8 -*-
+"""Unit tests for UnitySyntaxGuard."""
+
+from src.core.syntax_guard import UnitySyntaxGuard
+
+
+def test_protect_and_restore_richtext():
+    text = "Hello <color=#ff0000><b>Hero</b></color>! Your score is {0}."
+    protected, tags = UnitySyntaxGuard.protect(text, mode="token")
+
+    assert "⟦ULPH_" in protected
+    assert "<color=" not in protected
+    assert "{0}" not in protected
+    assert len(tags) == 5  # <color>, <b>, </b>, </color>, {0} -> 5 total tags
+
+    restored = UnitySyntaxGuard.restore(protected, tags, mode="token")
+    assert restored == text
+
+
+def test_xml_mode_for_llms():
+    text = "<size=24>Title</size> - Item: {itemName}"
+    protected, tags = UnitySyntaxGuard.protect(text, mode="xml")
+
+    assert '<ph id="0"/>' in protected
+    restored = UnitySyntaxGuard.restore(protected, tags, mode="xml")
+    assert restored == text
+
+
+def test_fuzzy_recovery_mangled_brackets():
+    text = "Hp: {0} / {1}"
+    protected, tags = UnitySyntaxGuard.protect(text, mode="token")
+    # Simulate machine engine replacing ⟦ ⟧ with [ ]
+    mangled = protected.replace("⟦", "[").replace("⟧", "]")
+
+    restored = UnitySyntaxGuard.restore(mangled, tags, mode="token")
+    assert restored == text
+
+
+def test_validate_integrity():
+    orig = "Player: {0}, Gold: {1}"
+    valid_trans = "Oyuncu: {0}, Altın: {1}"
+    broken_trans = "Oyuncu: {0}, Altın: 100"
+
+    ok, errors = UnitySyntaxGuard.validate_integrity(orig, valid_trans)
+    assert ok is True
+    assert len(errors) == 0
+
+    broken_ok, broken_errors = UnitySyntaxGuard.validate_integrity(orig, broken_trans)
+    assert broken_ok is False
+    assert len(broken_errors) > 0
+
+
+import pytest
+
+
+@pytest.mark.parametrize(
+    "text, token",
+    [
+        ("Score: {0,-6}", "{0,-6}"),
+        ("Total: {2,5:0.00}", "{2,5:0.00}"),
+        ("Hi {player.name}!", "{player.name}"),
+        ("Gold: {$gold}", "{$gold}"),
+        ("Hello {[PLAYER]}", "{[PLAYER]}"),
+        ("Use {{braces}} here", "{{"),
+        ("<#ff0000>Danger</color>", "<#ff0000>"),
+        ("Line<br>Two", "<br>"),
+        ("Line<br/>Two", "<br/>"),
+        ("<nobr>No-break</nobr>", "<nobr>"),
+        ("H<sub>2</sub>O", "<sub>"),
+        ("<pos=50%>Right", "<pos=50%>"),
+        ("[ff0000]Red[-] text", "[ff0000]"),
+        ("[b]Bold[/b] text", "[/b]"),
+    ],
+)
+def test_extended_tokens_are_protected(text: str, token: str) -> None:
+    protected, tags = UnitySyntaxGuard.protect(text)
+    assert token in tags
+    assert token not in protected
+    assert UnitySyntaxGuard.restore(protected, tags) == text
+
+
+@pytest.mark.parametrize(
+    "original, broken",
+    [
+        ("Score: {0,-6}", "Skor:"),
+        ("Hi {player.name}!", "Merhaba!"),
+        ("Line<br>Two", "Satır İki"),
+        ("[ff0000]Red[-]", "Kırmızı"),
+        ("<#ff0000>Danger</color>", "Tehlike</color>"),
+    ],
+)
+def test_dropped_extended_tokens_fail_integrity(original: str, broken: str) -> None:
+    ok, errors = UnitySyntaxGuard.validate_integrity(original, broken)
+    assert ok is False
+    assert errors
+
+
+def test_escaped_braces_are_not_split() -> None:
+    protected, tags = UnitySyntaxGuard.protect("{{literal}} {0}")
+    assert tags == ["{{", "}}", "{0}"]
+    assert "literal" in protected
+
+
+def test_plain_brackets_and_text_untouched() -> None:
+    text = "Press [Space] to jump (hold for 2s)"
+    protected, tags = UnitySyntaxGuard.protect(text)
+    assert tags == []
+    assert protected == text
