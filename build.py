@@ -102,10 +102,6 @@ def build_binary(root_dir: Path, onefile: bool = False, console: bool = False) -
     if icon_file.is_file():
         cmd.extend(["--icon", str(icon_file)])
 
-    qml_dir = root_dir / "src/gui/qml"
-    if qml_dir.is_dir():
-        cmd.extend(["--qmldir", str(qml_dir)])
-
     cmd.extend(get_data_args(root_dir))
     cmd.extend(get_hidden_imports())
     cmd.extend(get_collect_args())
