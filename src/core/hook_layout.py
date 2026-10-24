@@ -31,6 +31,7 @@ UNITY_BASE_LIBS_DIR = Path("BepInEx") / "unity-libs"
 # XUnity on startup and ignores regex entries, as do all files starting with "_".
 # UnityLocalizer therefore owns a separate file with normal priority and regex support.
 DICTIONARY_FILE = "UnityLocalizer.txt"
+SUBSTITUTIONS_FILE = "_Substitutions.txt"
 XUNITY_TEXT_DIRECTORY = r"Translation\{Lang}\Text"
 
 
@@ -43,6 +44,11 @@ def safe_lang_segment(target_lang: str) -> str:
 def dictionary_path(game_dir: Path | str, target_lang: str) -> Path:
     """XUnity static dictionary the pipeline writes for a language."""
     return Path(game_dir) / "BepInEx" / "Translation" / safe_lang_segment(target_lang) / "Text" / DICTIONARY_FILE
+
+
+def substitutions_path(game_dir: Path | str, target_lang: str) -> Path:
+    """XUnity runtime substitutions file for glossary and fixed terminology."""
+    return Path(game_dir) / "BepInEx" / "Translation" / safe_lang_segment(target_lang) / "Text" / SUBSTITUTIONS_FILE
 
 
 def proxy_present(game_dir: Path | str) -> bool:

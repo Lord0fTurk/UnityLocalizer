@@ -53,6 +53,8 @@ class RunContext:
     source_lang: str = "auto"
     engine: str = "google"
     rtl_shaping: bool = True
+    bilingual_mode: bool = False
+    bilingual_template: str = "{target}\n({source})"
     streaming_files: tuple[Path, ...] = ()
 
 

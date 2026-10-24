@@ -22,7 +22,7 @@ ColumnLayout {
     Label {
         visible: area.label.length > 0
         text: area.label
-        color: "#9CA3AF"
+        color: Theme.textSecondary
         font.pixelSize: 12
         font.bold: true
     }
@@ -37,13 +37,13 @@ ColumnLayout {
         wrapMode: TextEdit.Wrap
         selectByMouse: true
         font.pixelSize: 13
-        color: "#F3F4F6"
+        color: Theme.textPrimary
         placeholderText: area.placeholder
-        placeholderTextColor: "#6B7280"
+        placeholderTextColor: Theme.textMuted
         background: Rectangle {
-            radius: 8
-            color: "#0E121D"
-            border.color: input.activeFocus ? "#00F2FE" : "#242C44"
+            radius: Theme.radiusControl
+            color: Theme.surfaceControl
+            border.color: input.activeFocus ? Theme.borderFocus : Theme.borderControl
             border.width: 1
         }
         onActiveFocusChanged: {
@@ -59,7 +59,7 @@ ColumnLayout {
         visible: area.hint.length > 0
         text: area.hint
         wrapMode: Text.WordWrap
-        color: "#6B7280"
+        color: Theme.textMuted
         font.pixelSize: 11
     }
 }

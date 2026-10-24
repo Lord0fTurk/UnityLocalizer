@@ -17,7 +17,7 @@ ColumnLayout {
         Layout.fillWidth: true
         text: toggle.label
         checked: Boolean(appBackend && appBackend.settings[toggle.key])
-        Material.accent: "#00F2FE"
+        Material.accent: Theme.accentSolid
         onToggled: {
             if (appBackend) appBackend.setSetting(toggle.key, checked);
         }
@@ -30,6 +30,6 @@ ColumnLayout {
         text: toggle.description
         wrapMode: Text.WordWrap
         font.pixelSize: 11
-        color: "#6B7280"
+        color: Theme.textMuted
     }
 }

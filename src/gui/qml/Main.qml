@@ -31,29 +31,29 @@ ApplicationWindow {
     }
 
     title: "UnityLocalizer — " + window.t("dashboard.title") + " (v" + (appBackend ? appBackend.version : "0.1.0") + ")"
-    color: clrBg
+    color: Theme.canvas
 
-    Material.theme: Material.Dark
-    Material.accent: clrAccent
+    Material.theme: Theme.isDark ? Material.Dark : Material.Light
+    Material.accent: Theme.accentSolid
 
-    // ── Tek Premium Siberpunk & Glassmorphism Renk Paleti (RenLocalizer Paritesi) ──
-    readonly property color clrBg:         "#0B0F17"
-    readonly property color clrSidebar:    "#111522"
-    readonly property color clrSidebarTop: "#161B2E"
-    readonly property color clrCard:       "#151A29"
-    readonly property color clrCardHover:  "#1D2436"
-    readonly property color clrCardBorder: "#242C44"
-    readonly property color clrBorderGlow: "#00F2FE"
-    readonly property color clrInput:      "#0E121D"
-    readonly property color clrAccent:     "#00F2FE"
-    readonly property color clrAccent2:    "#4FACFE"
-    readonly property color clrPurple:     "#A855F7"
-    readonly property color clrSuccess:    "#10B981"
-    readonly property color clrWarn:       "#F59E0B"
-    readonly property color clrError:      "#EF4444"
-    readonly property color clrTxt:        "#F3F4F6"
-    readonly property color clrTxt2:       "#9CA3AF"
-    readonly property color clrTxtDim:     "#6B7280"
+    // ── Universal Multi-Theme Desktop UI System (DESIGN.md v2.1) ──
+    readonly property color clrBg:         Theme.canvas
+    readonly property color clrSidebar:    Theme.surfaceSidebar
+    readonly property color clrSidebarTop: Theme.surfaceSidebar
+    readonly property color clrCard:       Theme.surfaceCard
+    readonly property color clrCardHover:  Theme.surfaceHover
+    readonly property color clrCardBorder: Theme.borderCard
+    readonly property color clrBorderGlow: Theme.accentHover
+    readonly property color clrInput:      Theme.surfaceControl
+    readonly property color clrAccent:     Theme.accentSolid
+    readonly property color clrAccent2:    Theme.accentHover
+    readonly property color clrPurple:     Theme.preset === "indigo" ? Theme.accentSolid : "#A855F7"
+    readonly property color clrSuccess:    Theme.statusSuccess
+    readonly property color clrWarn:       Theme.statusWarning
+    readonly property color clrError:      Theme.statusDanger
+    readonly property color clrTxt:        Theme.textPrimary
+    readonly property color clrTxt2:       Theme.textSecondary
+    readonly property color clrTxtDim:     Theme.textMuted
 
     property int navIndex: 0
 
@@ -89,14 +89,18 @@ ApplicationWindow {
                         Layout.preferredWidth: 44
                         Layout.preferredHeight: 44
                         radius: 12
-                        color: Qt.rgba(0, 242/255, 254/255, 0.12)
-                        border.color: Qt.rgba(0, 242/255, 254/255, 0.3)
+                        color: Theme.accentAlpha(0.12)
+                        border.color: Theme.accentAlpha(0.3)
                         border.width: 1
 
-                        Label {
-                            anchors.centerIn: parent
-                            text: "🎮"
-                            font.pixelSize: 22
+                        Image {
+                            anchors.fill: parent
+                            anchors.margins: 4
+                            source: appBackend ? appBackend.get_asset_url("icon.png") : ""
+                            sourceSize: Qt.size(64, 64)
+                            fillMode: Image.PreserveAspectFit
+                            smooth: true
+                            mipmap: true
                         }
                     }
 
@@ -114,10 +118,10 @@ ApplicationWindow {
 
                         Rectangle {
                             implicitWidth: badgeRow.implicitWidth + 12
-                            implicitHeight: 18
-                            radius: 9
-                            color: Qt.rgba(0, 242/255, 254/255, 0.08)
-                            border.color: Qt.rgba(0, 242/255, 254/255, 0.25)
+                            implicitHeight: Theme.heightBadge
+                            radius: Theme.radiusBadge
+                            color: Theme.accentSubtle
+                            border.color: Theme.accentBorder
                             border.width: 1
 
                             RowLayout {
@@ -150,7 +154,7 @@ ApplicationWindow {
                 component NavButton: Button {
                     id: navBtn
                     property int targetIndex: 0
-                    property string iconText: ""
+                    property string iconGlyph: ""
                     property string labelText: ""
 
                     Layout.fillWidth: true
@@ -160,10 +164,16 @@ ApplicationWindow {
                     onClicked: navIndex = targetIndex
 
                     background: Rectangle {
-                        radius: 10
-                        color: navIndex === targetIndex ? Qt.rgba(0, 242/255, 254/255, 0.14) : (navBtn.hovered ? clrCardHover : "transparent")
-                        border.color: navIndex === targetIndex ? Qt.rgba(0, 242/255, 254/255, 0.6) : "transparent"
-                        border.width: 1
+                        radius: Theme.radiusControl
+                        color: {
+                            if (navIndex === targetIndex) return Theme.accentSubtle;
+                            return navBtn.hovered ? Theme.surfaceHover : "transparent";
+                        }
+                        border.color: {
+                            if (navIndex === targetIndex && Theme.isNeon) return Theme.accentSolid;
+                            return "transparent";
+                        }
+                        border.width: (navIndex === targetIndex && Theme.isNeon) ? 1.5 : 0
                         Behavior on color { ColorAnimation { duration: 140 } }
                         Behavior on border.color { ColorAnimation { duration: 140 } }
 
@@ -172,9 +182,9 @@ ApplicationWindow {
                             anchors.leftMargin: 4
                             anchors.verticalCenter: parent.verticalCenter
                             width: 3
-                            height: navIndex === targetIndex ? 22 : 0
+                            height: navIndex === targetIndex ? 20 : 0
                             radius: 1.5
-                            color: clrAccent
+                            color: Theme.accentSolid
                             opacity: navIndex === targetIndex ? 1.0 : 0.0
                             Behavior on height { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                             Behavior on opacity { NumberAnimation { duration: 140 } }
@@ -191,52 +201,54 @@ ApplicationWindow {
                             Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
                         }
 
-                        Label {
-                            text: iconText
-                            font.pixelSize: 16
+                        Icon {
+                            glyph: navBtn.iconGlyph
+                            size: 18
+                            color: navIndex === targetIndex ? (Theme.isDark ? Theme.accentHover : Theme.accentSolid) : (navBtn.hovered ? clrTxt : clrTxt2)
                             scale: navIndex === targetIndex ? 1.15 : 1.0
                             Behavior on scale { NumberAnimation { duration: 140 } }
+                            Behavior on color { ColorAnimation { duration: 140 } }
                         }
 
                         Label {
                             Layout.fillWidth: true
                             text: labelText
                             font.pixelSize: 13
-                            font.bold: navIndex === targetIndex
-                            color: navIndex === targetIndex ? clrAccent : clrTxt
+                            font.weight: navIndex === targetIndex ? Font.DemiBold : Font.Normal
+                            color: navIndex === targetIndex ? Theme.textPrimary : (navBtn.hovered ? clrTxt : clrTxt2)
                             Behavior on color { ColorAnimation { duration: 140 } }
                         }
                     }
                 }
 
-                // Menü Öğeleri (Tamamen i18n dinamik)
+                // Menü Öğeleri (Vektörel Lucide İkonları)
                 NavButton {
                     targetIndex: 0
-                    iconText: "🏠"
+                    iconGlyph: Icons.layoutDashboard
                     labelText: window.t("nav.dashboard")
                 }
 
                 NavButton {
                     targetIndex: 1
-                    iconText: "🧰"
+                    iconGlyph: Icons.wrench
                     labelText: window.t("nav.toolbox")
                 }
 
                 NavButton {
                     targetIndex: 2
-                    iconText: "⚙️"
+                    iconGlyph: Icons.settings
                     labelText: window.t("nav.settings")
                 }
 
                 NavButton {
                     targetIndex: 3
-                    iconText: "📜"
+                    iconGlyph: Icons.terminal
                     labelText: window.t("nav.console")
                 }
 
                 NavButton {
                     targetIndex: 4
-                    iconText: "📝"
+                    iconGlyph: Icons.squarePen
                     labelText: window.t("nav.editor")
                 }
 
@@ -246,8 +258,51 @@ ApplicationWindow {
 
                 NavButton {
                     targetIndex: 5
-                    iconText: "ℹ️"
+                    iconGlyph: Icons.info
                     labelText: window.t("nav.about")
+                }
+
+                Button {
+                    id: btnPatreonSupport
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 38
+                    topInset: 0
+                    bottomInset: 0
+                    leftInset: 0
+                    rightInset: 0
+                    padding: 0
+                    scale: down ? 0.96 : (hovered ? 1.02 : 1.0)
+                    transformOrigin: Item.Center
+                    Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                    onClicked: Qt.openUrlExternally("https://www.patreon.com/cw/LordOfTurk")
+
+                    background: Rectangle {
+                        radius: Theme.radiusControl
+                        color: btnPatreonSupport.down ? Qt.rgba(239/255, 68/255, 68/255, 0.22) : (btnPatreonSupport.hovered ? Qt.rgba(239/255, 68/255, 68/255, 0.12) : "transparent")
+                        border.color: btnPatreonSupport.hovered ? clrError : Qt.rgba(239/255, 68/255, 68/255, 0.35)
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                    }
+
+                    contentItem: RowLayout {
+                        spacing: 8
+                        Item { Layout.fillWidth: true }
+                        Icon {
+                            glyph: Icons.heart
+                            size: 14
+                            color: clrError
+                        }
+                        Label {
+                            text: window.t("nav.patreon_support")
+                            color: btnPatreonSupport.hovered ? clrTxt : Qt.rgba(239/255, 68/255, 68/255, 0.9)
+                            font.pixelSize: 12
+                            font.bold: true
+                            elide: Text.ElideRight
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
                 }
             }
         }

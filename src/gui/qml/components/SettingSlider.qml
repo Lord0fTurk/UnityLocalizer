@@ -25,14 +25,14 @@ ColumnLayout {
         Layout.fillWidth: true
         Label {
             text: slider.label
-            color: "#9CA3AF"
+            color: Theme.textSecondary
             font.pixelSize: 12
             font.bold: true
         }
         Item { Layout.fillWidth: true }
         Label {
             text: control.value.toFixed(slider.decimals) + slider.suffix
-            color: "#00F2FE"
+            color: Theme.isDark ? Theme.accentHover : Theme.accentSolid
             font.pixelSize: 12
             font.bold: true
         }
@@ -45,7 +45,7 @@ ColumnLayout {
         to: slider.to
         stepSize: slider.stepSize
         value: slider.storedValue
-        Material.accent: "#00F2FE"
+        Material.accent: Theme.accentSolid
         onPressedChanged: {
             if (!pressed && appBackend && Math.abs(value - slider.storedValue) > 1e-9) {
                 appBackend.setSetting(slider.key, value);
@@ -58,7 +58,7 @@ ColumnLayout {
         visible: slider.hint.length > 0
         text: slider.hint
         wrapMode: Text.WordWrap
-        color: "#6B7280"
+        color: Theme.textMuted
         font.pixelSize: 11
     }
 }

@@ -17,6 +17,8 @@ from __future__ import annotations
 import logging
 import re
 import time
+from collections.abc import Callable
+from typing import TypeVar
 
 from src.core.constants import GOOGLE_SEPARATOR_MAX_CHARS, GOOGLE_SEPARATOR_MAX_ITEMS
 from src.core.syntax_guard import TOKEN_RE, UnitySyntaxGuard
@@ -31,6 +33,8 @@ from src.core.translators.network import NetworkSettings, ProxyPool
 from src.core.translators.router import EndpointRouter
 
 logger = logging.getLogger(__name__)
+
+_T = TypeVar("_T")
 
 SEPARATOR = "\n|||RNLSEP999|||\n"
 _SEPARATOR_SPLIT = re.compile(r"\s*\|\|\|\s*RNLSEP999\s*\|\|\|\s*")
@@ -302,8 +306,20 @@ class GoogleTranslator(BaseTranslator):
             return result[0]
         return self.transport.lingva(text, sl, tl)
 
+    def detect_language(self, text: str) -> str | None:
+        """Ask a primary mirror which language ``text`` is in; None when it cannot tell."""
+        try:
+            return self._call_primary(lambda endpoint: self.transport.detect(endpoint, text))
+        except (TransportError, RateLimitedError) as exc:
+            logger.debug("Google language detection failed: %s", exc)
+            return None
+
     def _primary(self, text: str, sl: str, tl: str) -> str:
-        """POST to a primary mirror with shared 429 cooldown, mirror health and retries."""
+        """Translate through a primary mirror."""
+        return self._call_primary(lambda endpoint: self.transport.primary(endpoint, text, sl, tl))
+
+    def _call_primary(self, request: Callable[[str], _T]) -> _T:
+        """Run a request on a primary mirror with shared 429 cooldown, mirror health and retries."""
         last_error: Exception = FamilyUnavailableError("primary blocked")
         for attempt in range(self.settings.max_retries):
             probing = self.router.breaker_tripped
@@ -313,7 +329,7 @@ class GoogleTranslator(BaseTranslator):
                 self.router.wait_for_cooldown()
             endpoint = self.router.get_endpoint() if self.settings.use_multi_endpoint else self.router.endpoints[0]
             try:
-                out = self.transport.primary(endpoint, text, sl, tl)
+                out = request(endpoint)
             except RateLimitedError as exc:
                 self.router.on_rate_limited()
                 self.router.mark_mirror_failure(endpoint)

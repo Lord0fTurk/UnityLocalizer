@@ -155,3 +155,68 @@ def test_tmp_system_font_override_is_set_cleared_or_left_alone(tmp_path: Path) -
     assert override() == ["OverrideFontTextMeshPro=Arial"]
     FontBootstrap.inject_font(tmp_path, tmp_override_font="")
     assert override() == ["OverrideFontTextMeshPro="]
+
+
+def test_choice_prefix_regex_generation_and_matching() -> None:
+    import re
+    from src.core.parsers.xunity_regex import build_choice_prefix_entry
+
+    source = "I will help you."
+    trans = "Sana yardım edeceğim."
+    entry = build_choice_prefix_entry(source, trans)
+    assert entry is not None
+    key, val = entry
+    assert key.startswith('r:"^((?:(?:')
+    assert val == f'"${{1}}{trans}"'
+
+    raw_pattern = key[3:-1]
+    compiled = re.compile(raw_pattern)
+
+    for sample, expected_prefix in (
+        ("1. I will help you.", "1. "),
+        ("2) I will help you.", "2) "),
+        ("[1] I will help you.", "[1] "),
+        ("> I will help you.", "> "),
+        ("- I will help you.", "- "),
+        ("[Charm] I will help you.", "[Charm] "),
+        ("1. [Strength 14] I will help you.", "1. [Strength 14] "),
+    ):
+        match = compiled.match(sample)
+        assert match is not None, f"Failed to match: {sample}"
+        assert match.group(1) == expected_prefix
+
+
+def test_substitutions_file_generation_and_merge(tmp_path: Path) -> None:
+    from src.core.hook_layout import substitutions_path
+
+    sub_file = substitutions_path(tmp_path, "tr")
+    parser = AutoTranslatorParser()
+
+    assert parser.apply_substitutions(sub_file, {"Alden": "Altan", "Mana": "Büyü"})
+    lines = sub_file.read_text(encoding="utf-8-sig").splitlines()
+    assert "Alden=Altan" in lines
+    assert "Mana=Büyü" in lines
+
+    # Merge keeps existing and updates/appends
+    assert parser.apply_substitutions(sub_file, {"Alden": "Altan Reis", "Stamina": "Dayanıklılık"})
+    merged = sub_file.read_text(encoding="utf-8-sig").splitlines()
+    assert "Alden=Altan Reis" in merged
+    assert "Mana=Büyü" in merged
+    assert "Stamina=Dayanıklılık" in merged
+
+
+def test_expand_dialogue_and_quote_variants() -> None:
+    from src.core.parsers.auto_translator import expand_dialogue_and_quote_variants
+
+    raw = {
+        "{$way}: Do not be afraid.": "{$way}: Korkma.",
+        "{0}: Welcome to the shop!": "{0}: Dükkana hoş geldiniz!",
+        "Elliot: That's right...": "Elliot: Bu doğru...",
+        "Gold: {0}": "Altın: {0}",
+    }
+    expanded = expand_dialogue_and_quote_variants(raw)
+    assert expanded["Do not be afraid."] == "Korkma."
+    assert expanded["Welcome to the shop!"] == "Dükkana hoş geldiniz!"
+    assert expanded["That's right..."] == "Bu doğru..."
+    assert "{0}" not in expanded
+    assert expanded["That’s right…"] == "Bu doğru…"

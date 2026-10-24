@@ -11,13 +11,14 @@ Rectangle {
 
     property string caption: ""
     property string icon: ""
+    property string iconGlyph: ""
     property var model: []
     property string valueRole: "code"
     property string currentValue: ""
     property bool searchable: false
     property string searchPlaceholder: ""
     property string emptyText: ""
-    property color accent: "#00F2FE"
+    property color accent: Theme.accentSolid
     property bool warning: false
 
     signal activated(string value)
@@ -32,12 +33,12 @@ Rectangle {
     function open() { popup.open(); }
 
     implicitHeight: 70
-    radius: 10
-    color: tileMouse.containsMouse && enabled ? "#1F2740" : "#1A2033"
+    radius: Theme.radiusCard
+    color: tileMouse.containsMouse && enabled ? Theme.surfaceHover : Theme.surfaceControl
     border.width: 1
-    border.color: popup.opened ? accent
-                 : warning ? "#F59E0B"
-                 : (tileMouse.containsMouse && enabled ? Qt.rgba(accent.r, accent.g, accent.b, 0.55) : "#242C44")
+    border.color: popup.opened ? (Theme.isNeon ? Theme.accentHover : root.accent)
+                 : warning ? Theme.statusWarning
+                 : (tileMouse.containsMouse && enabled ? Theme.borderFocus : Theme.borderControl)
     opacity: enabled ? 1.0 : 0.55
     scale: tileMouse.pressed ? 0.985 : 1.0
     Behavior on color { ColorAnimation { duration: 120 } }
@@ -50,8 +51,15 @@ Rectangle {
         anchors.rightMargin: 12
         spacing: 10
 
+        Icon {
+            visible: root.iconGlyph.length > 0
+            glyph: root.iconGlyph
+            size: 18
+            color: root.accent
+        }
+
         Text {
-            visible: root.icon.length > 0
+            visible: root.iconGlyph.length === 0 && root.icon.length > 0
             text: root.icon
             font.pixelSize: 18
         }
@@ -63,7 +71,7 @@ Rectangle {
             Text {
                 text: root.caption
                 font.pixelSize: 11
-                color: "#9CA3AF"
+                color: Theme.textSecondary
             }
             Text {
                 id: valueText
@@ -72,7 +80,7 @@ Rectangle {
                 text: root.currentRow ? root.currentRow.name : root.currentValue
                 font.pixelSize: 14
                 font.bold: true
-                color: root.warning ? "#FCD34D" : "#F3F4F6"
+                color: root.warning ? Theme.statusWarning : Theme.textPrimary
                 elide: Text.ElideRight
             }
         }
@@ -80,7 +88,7 @@ Rectangle {
         Text {
             text: "▾"
             font.pixelSize: 14
-            color: popup.opened ? root.accent : "#6B7280"
+            color: popup.opened ? root.accent : Theme.textMuted
             rotation: popup.opened ? 180 : 0
             Behavior on rotation { NumberAnimation { duration: 140 } }
         }
@@ -143,9 +151,9 @@ Rectangle {
         }
 
         background: Rectangle {
-            radius: 12
-            color: "#151A29"
-            border.color: "#242C44"
+            radius: Theme.radiusCard
+            color: Theme.surfaceCard
+            border.color: Theme.borderCard
             border.width: 1
         }
 
@@ -154,11 +162,11 @@ Rectangle {
 
             Rectangle {
                 Layout.fillWidth: true
-                Layout.preferredHeight: 38
+                Layout.preferredHeight: Theme.heightInput
                 visible: root.searchable
-                radius: 8
-                color: "#0E121D"
-                border.color: searchField.activeFocus ? root.accent : "#242C44"
+                radius: Theme.radiusControl
+                color: Theme.surfaceControl
+                border.color: searchField.activeFocus ? Theme.borderFocus : Theme.borderControl
                 border.width: 1
 
                 RowLayout {
@@ -167,13 +175,13 @@ Rectangle {
                     anchors.rightMargin: 10
                     spacing: 8
 
-                    Text { text: "🔍"; font.pixelSize: 12; color: "#6B7280" }
+                    Text { text: "🔍"; font.pixelSize: 12; color: Theme.textMuted }
 
                     TextInput {
                         id: searchField
                         Layout.fillWidth: true
                         font.pixelSize: 13
-                        color: "#F3F4F6"
+                        color: Theme.textPrimary
                         clip: true
                         selectByMouse: true
                         Keys.onReturnPressed: popup.choose(popup.filtered[0])
@@ -184,7 +192,7 @@ Rectangle {
                             anchors.fill: parent
                             verticalAlignment: Text.AlignVCenter
                             text: root.searchPlaceholder
-                            color: "#6B7280"
+                            color: Theme.textMuted
                             font.pixelSize: 13
                             visible: !searchField.text
                         }
@@ -208,7 +216,7 @@ Rectangle {
                     contentItem: Rectangle {
                         implicitWidth: 4
                         radius: 2
-                        color: listScroll.pressed || listScroll.hovered ? root.accent : "#3A4560"
+                        color: listScroll.pressed || listScroll.hovered ? root.accent : Theme.borderControl
                         opacity: listScroll.active ? 1.0 : 0.6
                     }
                 }
@@ -218,9 +226,9 @@ Rectangle {
                     readonly property bool selected: modelData[root.valueRole] === root.currentValue
                     width: listView.width - 12
                     height: 36
-                    radius: 7
-                    color: selected ? Qt.rgba(root.accent.r, root.accent.g, root.accent.b, 0.14)
-                         : (rowMouse.containsMouse || ListView.isCurrentItem ? "#1D2436" : "transparent")
+                    radius: Theme.radiusControl
+                    color: selected ? Theme.accentSubtle
+                         : (rowMouse.containsMouse || ListView.isCurrentItem ? Theme.surfaceHover : "transparent")
 
                     RowLayout {
                         anchors.fill: parent
@@ -235,14 +243,14 @@ Rectangle {
                             horizontalAlignment: Text.AlignLeft
                             font.pixelSize: 13
                             font.bold: selected
-                            color: selected ? root.accent : "#F3F4F6"
+                            color: selected ? (Theme.isDark ? Theme.accentHover : Theme.accentSolid) : Theme.textPrimary
                             elide: Text.ElideRight
                         }
                         Text {
                             visible: modelData.code !== undefined
                             text: modelData.code || ""
                             font.pixelSize: 11
-                            color: "#6B7280"
+                            color: Theme.textMuted
                         }
                     }
 
@@ -260,7 +268,7 @@ Rectangle {
                     visible: popup.filtered.length === 0
                     text: root.emptyText
                     font.pixelSize: 12
-                    color: "#6B7280"
+                    color: Theme.textMuted
                 }
             }
         }

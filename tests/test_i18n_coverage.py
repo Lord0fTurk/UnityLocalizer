@@ -14,14 +14,14 @@ QML_FILES = sorted((ROOT / "src" / "gui" / "qml").rglob("*.qml"))
 LOCALE_FILES = sorted((ROOT / "src" / "gui" / "i18n").glob("*.json"))
 
 _STRING = r'"((?:[^"\\]|\\.)*)"'
-_I18N_CALL = re.compile(r'(?:localeManager\.t|root\.tr|root\.t)\("([\w.]+)"\)')
+_I18N_CALL = re.compile(r'(?:localeManager\.t|root\.tr|root\.t|window\.t)\("([\w.]+)"\)')
 _WORD = re.compile(r"[^\W\d_]{3,}")
 _SKIP_LINE = re.compile(r'^\s*(import |id:|objectName:|//)')
 # Literals that are not translatable prose: brand, technical identifiers, placeholders.
 _ALLOWED = {
     "UnityLocalizer", "auto", "code", "name", "id", "level", "info", "success", "warning", "error",
     "AIzaSy...", "sk-...", "gemini-2.5-flash", "gpt-4o-mini", "qwen2.5:latest", "Arial",
-    "http://localhost:11434", "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx",
+    "http://localhost:11434", "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx", "icon.png",
     "rejected", "invalid", "failed", "edited", "accepted", "unchanged", "repaired",
     "ALL", "INFO", "SUCCESS", "WARNING", "WARN", "ERROR",
     "Consolas, 'Cascadia Code', monospace", "english", "native",

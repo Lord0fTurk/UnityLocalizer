@@ -89,8 +89,8 @@ class GoogleTransport:
 
     # ── families ─────────────────────────────────────────────────────────
 
-    def primary(self, endpoint: str, text: str, source_lang: str, target_lang: str) -> str:
-        """POST /translate_a/single (form body, no URL length limit)."""
+    def _post_primary(self, endpoint: str, text: str, source_lang: str, target_lang: str) -> Any:
+        """POST /translate_a/single (form body, no URL length limit) and return the JSON payload."""
         body = urllib.parse.urlencode(
             {"client": "gtx", "sl": source_lang or "auto", "tl": target_lang, "dt": "t", "q": text}
         )
@@ -99,10 +99,23 @@ class GoogleTransport:
             headers=self._headers("application/x-www-form-urlencoded;charset=utf-8"),
         )
         try:
-            segments = resp.json()[0]
-            return "".join(part[0] for part in segments if part and part[0])
-        except (ValueError, TypeError, IndexError) as exc:
+            return resp.json()
+        except ValueError as exc:
             raise TransportError(f"Unexpected primary payload: {exc}") from exc
+
+    def primary(self, endpoint: str, text: str, source_lang: str, target_lang: str) -> str:
+        """Translate through a primary mirror."""
+        payload = self._post_primary(endpoint, text, source_lang, target_lang)
+        try:
+            return "".join(part[0] for part in payload[0] if part and part[0])
+        except (TypeError, IndexError) as exc:
+            raise TransportError(f"Unexpected primary payload: {exc}") from exc
+
+    def detect(self, endpoint: str, text: str) -> str | None:
+        """Language Google detected for ``text`` (payload index 2), or None when absent."""
+        payload = self._post_primary(endpoint, text, "auto", "en")
+        detected = payload[2] if isinstance(payload, list) and len(payload) > 2 else None
+        return detected.lower() if isinstance(detected, str) and len(detected) >= 2 else None
 
     def clients5(self, text: str, source_lang: str, target_lang: str) -> str:
         """Chrome dictionary endpoint (GET; short texts only)."""

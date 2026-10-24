@@ -98,6 +98,15 @@ class ProgressLogFilter:
 
 ProgressCallback = Callable[[ProgressEvent], None]
 
+# Events the user must notice (toast + warning-level log) instead of only a console line.
+NOTIFICATION_LEVELS: dict[str, str] = {
+    "pipeline.source_detected_offline": "info",
+    "pipeline.source_detected_online": "info",
+    "pipeline.source_detect_failed": "warning",
+    "font.version_unknown": "warning",
+    "font.coverage_missing": "warning",
+}
+
 
 def emit(callback: ProgressCallback | None, key: str, current: int = 0, total: int = 0, **params: Any) -> None:
     """Invoke the callback with a new event when one is registered."""

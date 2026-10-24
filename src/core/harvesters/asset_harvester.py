@@ -29,6 +29,8 @@ _ASSET_TECHNICAL_PREFIXES: tuple[str, ...] = (
 )
 # Numbered scene object names such as "Wall_01" or "Rock_3 left".
 _NUMBERED_OBJECT_RE = re.compile(r"^[A-Za-z0-9\s]+_\d+(\s.*)?$")
+# Speaker prefix in serialized dialogue templates like "{0}: ..." or "{$way}: ..."
+_SPEAKER_PREFIX_RE = re.compile(r"^\{(?:\$?[A-Za-z_]\w*|\d+)\}:\s*(.+)$")
 
 
 def _first_attr(data: Any, *names: str) -> Any:
@@ -146,7 +148,12 @@ class AssetHarvester:
                 offset += 4
                 continue
             if cls.is_translatable(text):
-                extracted.append(text.strip())
+                cleaned = text.strip()
+                extracted.append(cleaned)
+                if spk_match := _SPEAKER_PREFIX_RE.match(cleaned):
+                    body = spk_match.group(1).strip()
+                    if cls.is_translatable(body):
+                        extracted.append(body)
                 offset = end + pad
             else:
                 offset += 4

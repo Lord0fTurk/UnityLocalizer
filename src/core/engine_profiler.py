@@ -25,7 +25,7 @@ _UNITY_DATA_MARKERS: tuple[str, ...] = (
 _UNITY_RUNTIME_FILES: tuple[str, ...] = ("UnityPlayer.dll", "GameAssembly.dll", "UnityPlayer.so", "GameAssembly.so")
 _EXE_EXCLUDES: tuple[str, ...] = ("crashhandler", "unins", "setup", "redist", "vc_redist", "dxsetup")
 
-_UNITY_VERSION_RE = re.compile(r"\b((?:20\d{2}|[56]\d{3}|5)\.\d+\.\d+[abfp]\d+)\b")
+_UNITY_VERSION_RE = re.compile(r"\b((?:20\d{2}|[56]\d{3}|5)\.\d+\.\d+[abfp]\d+[a-zA-Z0-9]*)\b")
 
 IL2CPP_METADATA_MAGIC = 0xFAB11BAF
 # Metadata versions shipped by Unity 5.3 (v16) up to Unity 6.x (v31-v39 range).
@@ -160,15 +160,26 @@ class EngineProfiler:
         """Locate the game executable: the one owning a ``<stem>_Data`` folder wins.
 
         Folders often hold launchers or tools next to the game, so the first
-        ``*.exe`` is not necessarily the Unity player whose bitness matters.
+        executable is not necessarily the Unity player whose bitness matters.
+        Supports both Windows (.exe) and Linux (.x86_64 / .x86 / extensionless).
         """
+        # 1. First check matching <stem>_Data directory for precise pair
+        for sub in sorted(game_dir.iterdir()):
+            if sub.is_dir() and sub.name.endswith("_Data"):
+                stem = sub.name[:-5]
+                for ext in (".exe", ".x86_64", ".x86", ""):
+                    cand = game_dir / f"{stem}{ext}"
+                    if cand.is_file() and not any(part in cand.name.lower() for part in _EXE_EXCLUDES):
+                        return cand
+
+        # 2. Otherwise scan executables
+        found: list[Path] = []
+        for pattern in ("*.exe", "*.x86_64", "*.x86"):
+            found.extend(game_dir.glob(pattern))
         candidates = [
-            exe for exe in sorted(game_dir.glob("*.exe"))
+            exe for exe in sorted(found)
             if not any(part in exe.name.lower() for part in _EXE_EXCLUDES)
         ]
-        for exe in candidates:
-            if (game_dir / f"{exe.stem}_Data").is_dir():
-                return exe
         return candidates[0] if candidates else None
 
     @staticmethod
@@ -280,11 +291,25 @@ class EngineProfiler:
             profile.data_dir and (profile.data_dir / "il2cpp_data").is_dir()
         )
         profile.is_il2cpp = bool(has_game_assembly or has_il2cpp_dir)
-        profile.is_windows_build = profile.game_exe is not None or any(
-            (root / name).is_file() for name in ("UnityPlayer.dll", "GameAssembly.dll")
+        is_windows_exe = profile.game_exe is not None and profile.game_exe.suffix.lower() == ".exe"
+        profile.is_windows_build = bool(
+            is_windows_exe or any((root / name).is_file() for name in ("UnityPlayer.dll", "GameAssembly.dll"))
         )
 
-        # 2. Check PE header for bitness (fall back to UnityPlayer.dll / GameAssembly.dll)
+        # 2. Check ELF vs PE header for bitness
+        if profile.game_exe and profile.game_exe.is_file():
+            try:
+                with open(profile.game_exe, "rb") as bf:
+                    magic = bf.read(4)
+                    if magic == b"\x7fELF":
+                        elf_class = bf.read(1)
+                        if elf_class:
+                            profile.is_64bit = (elf_class[0] == 2)
+                            return
+            except OSError:
+                pass
+
+        # Check PE header for bitness (fall back to UnityPlayer.dll / GameAssembly.dll)
         candidates = [
             b for b in (profile.game_exe, root / "UnityPlayer.dll", root / "GameAssembly.dll")
             if b is not None and b.is_file()
@@ -352,7 +377,7 @@ class EngineProfiler:
         except OSError as exc:
             logger.debug("Cannot read %s: %s", ggm, exc)
             return None
-        match = re.search(rb"\b((?:20\d{2}|[56]\d{3}|5)\.\d+\.\d+[abfp]\d+)", chunk)
+        match = re.search(rb"\b((?:20\d{2}|[56]\d{3}|5)\.\d+\.\d+[abfp]\d+[a-zA-Z0-9]*)", chunk)
         return match.group(1).decode("ascii", "replace") if match else None
 
     @classmethod

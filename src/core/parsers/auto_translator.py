@@ -11,6 +11,7 @@ including entries and regexes added by hand, is preserved.
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 
 from src.core.parsers import xunity_codec
@@ -22,6 +23,39 @@ logger = logging.getLogger(__name__)
 
 REGEX_SECTION_BEGIN = "// <UnityLocalizer:runtime-formats> generated from the entries above, edits are overwritten"
 REGEX_SECTION_END = "// </UnityLocalizer:runtime-formats>"
+
+_SPEAKER_PREFIX_RE = re.compile(
+    r"^(?:\{(?:\$?[A-Za-z_]\w*|\d+)\}|\[[\w\s]{1,30}\]|[A-Za-zÀ-ÖØ-öø-ÿ\u0100-\uFFFF][\w.\-]{0,25}(?: [A-Za-zÀ-ÖØ-öø-ÿ\u0100-\uFFFF][\w.\-]{0,19})?):\s*(.+)$"
+)
+_PLACEHOLDER_STRIP_RE = re.compile(r"\{(?:\$?[A-Za-z_]\w*|\d+)\}")
+
+
+def expand_dialogue_and_quote_variants(translations: dict[str, str]) -> dict[str, str]:
+    """Emit stripped dialogue bodies and quote variants so runtime engines match split views."""
+    expanded = dict(translations)
+    for k, v in translations.items():
+        km = _SPEAKER_PREFIX_RE.match(k)
+        vm = _SPEAKER_PREFIX_RE.match(v)
+        if km and vm:
+            src_body = km.group(1).strip()
+            dst_body = vm.group(1).strip()
+            visible_alpha = [c for c in _PLACEHOLDER_STRIP_RE.sub("", src_body) if c.isalpha()]
+            if len(visible_alpha) >= 2 and src_body not in expanded:
+                expanded[src_body] = dst_body
+
+    for k, v in list(expanded.items()):
+        if any(ch in k for ch in ("’", "‘", "…")):
+            k_ascii = k.replace("’", "'").replace("‘", "'").replace("…", "...")
+            v_ascii = v.replace("’", "'").replace("‘", "'").replace("…", "...")
+            if k_ascii != k and k_ascii not in expanded:
+                expanded[k_ascii] = v_ascii
+        elif "'" in k or "..." in k:
+            k_curly = k.replace("'", "’").replace("...", "…")
+            v_curly = v.replace("'", "’").replace("...", "…")
+            if k_curly != k and k_curly not in expanded:
+                expanded[k_curly] = v_curly
+
+    return expanded
 
 
 class AutoTranslatorParser(BaseParser):
@@ -68,10 +102,11 @@ class AutoTranslatorParser(BaseParser):
         """Merge translations, keep other lines verbatim and regenerate the regex section."""
         path = Path(file_path)
         out_path = Path(output_path) if output_path else path
-        literal = {k: v for k, v in translations.items() if xunity_codec.is_literal_key(k)}
-        if len(literal) != len(translations):
+        expanded = expand_dialogue_and_quote_variants(translations)
+        literal = {k: v for k, v in expanded.items() if xunity_codec.is_literal_key(k)}
+        if len(literal) != len(expanded):
             # XUnity reads keys starting with r:/sr: as regexes, so such texts cannot be keys.
-            logger.info("Skipped %d texts starting with r:/sr:", len(translations) - len(literal))
+            logger.info("Skipped %d texts starting with r:/sr:", len(expanded) - len(literal))
         kept = self._without_generated_section(self._read_lines(path))
         lines_out, entries = self._merge_entries(kept, literal)
         lines_out += self._regex_section(entries)
@@ -79,6 +114,23 @@ class AutoTranslatorParser(BaseParser):
             return safe_write(out_path, "\n".join(lines_out) + "\n", encoding="utf-8-sig")
         except OSError as exc:
             logger.error("Failed to write AutoTranslator dictionary %s: %s", out_path, exc)
+            return False
+
+    def apply_substitutions(
+        self,
+        file_path: Path | str,
+        substitutions: dict[str, str],
+        output_path: Path | str | None = None,
+    ) -> bool:
+        """Write terminology substitutions to _Substitutions.txt, preserving existing entries."""
+        path = Path(file_path)
+        out_path = Path(output_path) if output_path else path
+        literal = {k: v for k, v in substitutions.items() if xunity_codec.is_literal_key(k)}
+        lines_out, _ = self._merge_entries(self._read_lines(path), literal)
+        try:
+            return safe_write(out_path, "\n".join(lines_out) + "\n", encoding="utf-8-sig")
+        except OSError as exc:
+            logger.error("Failed to write AutoTranslator substitutions %s: %s", out_path, exc)
             return False
 
     @staticmethod

@@ -116,7 +116,10 @@ class PatchExporter:
 
         cls._copy_streaming_assets(root, patch_dir)
         cls._copy_hook_payload(root, patch_dir, safe_lang)
-        FontBootstrap.inject_font(patch_dir, target_lang=safe_lang, source_lang=source_lang, make_backup=False)
+        is_il2cpp = (root / IL2CPP_RUNTIME_MARKER).is_file()
+        FontBootstrap.inject_font(
+            patch_dir, target_lang=safe_lang, source_lang=source_lang, make_backup=False, is_il2cpp=is_il2cpp
+        )
         write_scripts(patch_dir, safe_lang)
         write_readme(patch_dir, game_name, safe_lang)
         archive = cls._archive(patch_dir)

@@ -97,6 +97,20 @@ def get_language(code: str) -> Language | None:
     return _BY_CODE.get(code.strip().lower())
 
 
+# Codes detectors return that differ from the catalog's canonical spelling.
+_DETECTOR_ALIASES: dict[str, str] = {
+    "zh": "zh-CN", "zh-hans": "zh-CN", "zh-hant": "zh-TW", "pt": "pt-BR", "iw": "he", "jw": "jv",
+    "fil": "tl", "nb": "no", "nn": "no", "kmr": "ku", "mni": "mni-Mtei",
+}
+
+
+def canonical_language_code(code: str) -> str | None:
+    """Catalog code for a detector's answer ('zh' -> 'zh-CN', 'iw' -> 'he'); None if unsupported."""
+    cleaned = code.strip().replace("_", "-").lower()
+    language = get_language(_DETECTOR_ALIASES.get(cleaned, cleaned))
+    return language.code if language else None
+
+
 def english_name(code: str) -> str:
     """English language name, or the code itself when unknown."""
     language = get_language(code)

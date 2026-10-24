@@ -43,6 +43,9 @@ def test_font_bootstrap_inject_font(tmp_path: Path) -> None:
     assert "OverrideFont=\n" in content
     assert "Endpoint=\n" in content
     assert "Language=tr" in content
+    assert "CacheRegexPatternResults=True" in content
+    assert "MinDialogueChars=1" in content
+    assert "EnableFairyGUI=True" in content
 
 
 def test_font_bootstrap_wires_detected_bundle(tmp_path: Path) -> None:
@@ -87,7 +90,10 @@ def test_font_bootstrap_keeps_user_options_and_enforces_offline(tmp_path: Path) 
     content = ini_file.read_bytes().decode("utf-8-sig")
 
     assert "Endpoint=\r\n" in content and "GoogleTranslate" not in content  # always offline
-    assert "Language=tr" in content and "FromLanguage=ja" in content
+    assert "Language=tr" in content
+    assert "CacheRegexPatternResults=True" in content
+    assert "MinDialogueChars=1" in content
+    assert "EnableFairyGUI=True" in content and "FromLanguage=ja" in content
     assert "MaxCharactersPerTranslation=900" in content and "EnableUIResizing=False" in content
     assert "; user tuned this" in content and "[Custom]\r\nKeep=Me" in content
     assert "FallbackFontTextMeshPro=BepInEx/font/mine_sdf" in content  # no bundle found: user's font kept
@@ -103,3 +109,18 @@ def test_merge_ini_is_idempotent() -> None:
     once = merge_ini("", forced, defaults)
     assert merge_ini(once, forced, defaults) == once
     assert once == "[Behaviour]\nForceUIResizing=False\n\n[General]\nLanguage=tr\n"
+
+
+def test_font_bootstrap_il2cpp_disables_imgui_and_uses_system_font(tmp_path: Path) -> None:
+    """IL2CPP builds bypass AssetBundles, disable unsupported IMGUI and use OS system font."""
+    font_dir = tmp_path / "BepInEx" / "font"
+    font_dir.mkdir(parents=True)
+    (font_dir / "arialuni_sdf_u6000").write_bytes(b"UnityFS")
+
+    assert FontBootstrap.inject_font(tmp_path, target_lang="ru", is_il2cpp=True)
+    ini_file = tmp_path / "BepInEx" / "config" / "AutoTranslatorConfig.ini"
+    content = ini_file.read_text(encoding="utf-8-sig")
+
+    assert "EnableIMGUI=False" in content
+    assert "OverrideFontTextMeshPro=Arial" in content
+    assert "FallbackFontTextMeshPro=\n" in content or "FallbackFontTextMeshPro=\r\n" in content

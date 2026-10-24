@@ -5,13 +5,13 @@ Rectangle {
     id: root
     property string title: ""
     property string value: ""
-    property color accentColor: Material.accentColor
+    property color accentColor: Theme.isDark ? Theme.accentHover : Theme.accentSolid
 
     implicitWidth: 160
     implicitHeight: 64
-    radius: 8
-    color: "#252528"
-    border.color: "#353538"
+    radius: Theme.radiusControl
+    color: Theme.surfaceControl
+    border.color: Theme.borderControl
     border.width: 1
 
     Column {
@@ -21,7 +21,7 @@ Rectangle {
         Text {
             text: root.title
             font.pixelSize: 11
-            color: "#888888"
+            color: Theme.textSecondary
             anchors.horizontalCenter: parent.horizontalCenter
         }
 

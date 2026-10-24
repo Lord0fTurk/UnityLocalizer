@@ -3,22 +3,23 @@ import QtQuick.Controls
 import QtQuick.Controls.Material
 import QtQuick.Controls.Basic as Basic
 import QtQuick.Layouts
+import "../components"
 
 Item {
     id: root
 
-    readonly property color clrBg:         "#0B0F17"
-    readonly property color clrCard:       "#151A29"
-    readonly property color clrCardHover:  "#1D2436"
-    readonly property color clrCardBorder: "#242C44"
-    readonly property color clrInput:      "#0E121D"
-    readonly property color clrAccent:     "#00F2FE"
-    readonly property color clrWarn:       "#F59E0B"
-    readonly property color clrError:      "#EF4444"
-    readonly property color clrSuccess:    "#10B981"
-    readonly property color clrTxt:        "#F3F4F6"
-    readonly property color clrTxt2:       "#9CA3AF"
-    readonly property color clrTxtDim:     "#6B7280"
+    readonly property color clrBg:         Theme.canvas
+    readonly property color clrCard:       Theme.surfaceCard
+    readonly property color clrCardHover:  Theme.surfaceHover
+    readonly property color clrCardBorder: Theme.borderCard
+    readonly property color clrInput:      Theme.surfaceControl
+    readonly property color clrAccent:     Theme.accentSolid
+    readonly property color clrWarn:       Theme.statusWarning
+    readonly property color clrError:      Theme.statusDanger
+    readonly property color clrSuccess:    Theme.statusSuccess
+    readonly property color clrTxt:        Theme.textPrimary
+    readonly property color clrTxt2:       Theme.textSecondary
+    readonly property color clrTxtDim:     Theme.textMuted
 
     readonly property bool hasSession: editorBackend ? editorBackend.hasSession : false
 
@@ -60,9 +61,9 @@ Item {
                 spacing: 2
                 Label {
                     text: root.tr("editor.title")
-                    font.pixelSize: 20
+                    font.pixelSize: 22
                     font.bold: true
-                    color: clrTxt
+                    color: Theme.textPrimary
                 }
                 Label {
                     text: root.hasSession
@@ -71,32 +72,36 @@ Item {
                                 .replace("{ready}", editorBackend.shippableCount)
                                 .replace("{lang}", editorBackend.targetLanguage)
                           : root.tr("editor.subtitle_empty")
-                    font.pixelSize: 12
-                    color: clrTxt2
+                    font.pixelSize: 13
+                    color: Theme.textSecondary
                 }
             }
 
             Item { Layout.fillWidth: true }
 
             Button {
-                height: 36
+                height: Theme.heightSecondary
+                topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
                 enabled: root.hasSession && editorBackend.shippableCount > 0
                 opacity: enabled ? 1.0 : 0.45
-                text: "💾 " + root.tr("editor.save_btn")
                 scale: down ? 0.97 : (hovered ? 1.02 : 1.0)
                 Behavior on scale { NumberAnimation { duration: 100 } }
                 background: Rectangle {
-                    radius: 8
-                    color: parent.hovered ? tint(clrSuccess, 0.25) : tint(clrSuccess, 0.15)
-                    border.color: clrSuccess; border.width: 1
+                    radius: Theme.radiusControl
+                    color: parent.hovered ? Theme.statusSuccessSubtle : Theme.surfaceControl
+                    border.color: parent.hovered ? Theme.statusSuccess : Theme.statusSuccessBorder
+                    border.width: 1
                 }
-                contentItem: Label {
-                    text: parent.text
-                    color: clrSuccess
-                    font.pixelSize: 12
-                    font.bold: true
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
+                contentItem: RowLayout {
+                    spacing: 6
+                    anchors.centerIn: parent
+                    Icon { glyph: Icons.save; size: 14; color: Theme.statusSuccess }
+                    Label {
+                        text: root.tr("editor.save_btn")
+                        color: Theme.statusSuccess
+                        font.pixelSize: 13
+                        font.bold: true
+                    }
                 }
                 onClicked: {
                     forceActiveFocus();
@@ -131,7 +136,7 @@ Item {
                         readonly property color chipColor: modelData.key === "" ? clrTxt : root.statusColor(modelData.key)
                         readonly property int chipCount: !editorBackend ? 0
                             : (modelData.key === "" ? editorBackend.totalCount : (editorBackend.counts[modelData.key] || 0))
-                        height: 28; radius: 6
+                        height: Theme.heightBadge; radius: Theme.radiusBadge
                         width: chipLabel.implicitWidth + 20
                         color: active ? root.tint(chipColor, 0.2) : clrCard
                         border.color: active ? chipColor : clrCardBorder; border.width: 1
@@ -156,8 +161,8 @@ Item {
 
             Rectangle {
                 Layout.preferredWidth: 280
-                height: 36
-                radius: 8
+                height: Theme.heightInput
+                radius: Theme.radiusControl
                 color: clrInput
                 border.color: searchInput.activeFocus ? clrAccent : clrCardBorder
                 border.width: 1
@@ -204,8 +209,8 @@ Item {
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            radius: 12
-            color: "#080C13"
+            radius: Theme.radiusCard
+            color: Theme.isDark ? "#080C13" : Theme.surfaceControl
             border.color: clrCardBorder
             border.width: 1
 
@@ -235,7 +240,7 @@ Item {
                 delegate: Rectangle {
                     width: rowList.width - 12
                     implicitHeight: rowCol.implicitHeight + 20
-                    radius: 8
+                    radius: Theme.radiusControl
                     color: clrCard
                     border.color: root.tint(root.statusColor(modelData.status), 0.45)
                     border.width: 1
@@ -291,9 +296,9 @@ Item {
                             placeholderText: root.tr("editor.translation_placeholder")
                             placeholderTextColor: clrTxtDim
                             background: Rectangle {
-                                radius: 6
+                                radius: Theme.radiusControl
                                 color: clrInput
-                                border.color: translationInput.activeFocus ? clrAccent : clrCardBorder
+                                border.color: translationInput.activeFocus ? Theme.borderFocus : Theme.borderControl
                                 border.width: 1
                             }
                             function commitEdit() {

@@ -27,7 +27,9 @@ _LANG_TOKEN = "__LANG__"
 
 # Files of the patch itself that are never copied into the game.
 PATCH_TOOL_FILES: tuple[str, ...] = (
-    "Install_Patch.bat", "Uninstall_Patch.bat", "Yama_Kur.bat", "Yama_Kaldir.bat", "README.txt", "BENI_OKU.txt",
+    "Install_Patch.bat", "Uninstall_Patch.bat", "Yama_Kur.bat", "Yama_Kaldir.bat",
+    "Install_Patch.sh", "Uninstall_Patch.sh", "Yama_Kur.sh", "Yama_Kaldir.sh",
+    "README.txt", "BENI_OKU.txt",
 )
 
 _COMMON_SUBROUTINES = r"""
@@ -133,6 +135,142 @@ rd "%DST%" 2>nul
 exit /b 0
 """
 
+_INSTALL_SH = r"""#!/bin/sh
+set -e
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PATCH_ROOT="$SCRIPT_DIR"
+TARGET_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+echo "======================================================="
+echo "  UnityLocalizer Offline Patch Installer [__LANG__]"
+echo "======================================================="
+echo ""
+
+GAME_FOUND=0
+for d in "$TARGET_DIR"/*_Data; do
+    if [ -d "$d" ]; then
+        GAME_FOUND=1
+        break
+    fi
+done
+
+if [ "$GAME_FOUND" -eq 0 ]; then
+    echo "[ERROR] No Unity game was found next to this folder."
+    echo "[ERROR] Copy this whole patch folder into the game's main folder"
+    echo "[ERROR] (where the game executable is) and run this script again."
+    echo ""
+    exit 1
+fi
+
+echo "[*] Game folder: $TARGET_DIR"
+echo "[*] Installing the offline translation (replaced files are kept as *.ul_orig)..."
+
+TOOLS="__TOOLS__"
+
+is_tool() {
+    base="$(basename "$1")"
+    for t in $TOOLS; do
+        if [ "$base" = "$t" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+find "$PATCH_ROOT" -type f | while IFS= read -r src; do
+    rel="${src#$PATCH_ROOT/}"
+    if is_tool "$rel"; then
+        continue
+    fi
+    dst="$TARGET_DIR/$rel"
+    mkdir -p "$(dirname "$dst")"
+    if [ ! -f "$dst.ul_orig" ] && [ ! -f "$dst.ul_new" ]; then
+        if [ -f "$dst" ]; then
+            cp "$dst" "$dst.ul_orig"
+        else
+            touch "$dst.ul_new"
+        fi
+    fi
+    cp "$src" "$dst"
+done
+
+echo ""
+echo "[SUCCESS] Patch installed successfully! 100% offline."
+echo ""
+echo "======================================================="
+echo " [INFO] Steam Deck / Linux (Proton) Note:"
+echo " If running this Windows game under Proton on Steam,"
+echo " open Steam > Game Properties > Launch Options and add:"
+echo ' WINEDLLOVERRIDES="winhttp=n,b" %command%'
+echo "======================================================="
+echo ""
+exit 0
+"""
+
+_UNINSTALL_SH = r"""#!/bin/sh
+set -e
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PATCH_ROOT="$SCRIPT_DIR"
+TARGET_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+echo "======================================================="
+echo "  UnityLocalizer Patch Uninstaller (Vanilla Restore)"
+echo "======================================================="
+echo ""
+
+GAME_FOUND=0
+for d in "$TARGET_DIR"/*_Data; do
+    if [ -d "$d" ]; then
+        GAME_FOUND=1
+        break
+    fi
+done
+
+if [ "$GAME_FOUND" -eq 0 ]; then
+    echo "[ERROR] No Unity game was found next to this folder."
+    exit 1
+fi
+
+echo "[*] Restoring game files: $TARGET_DIR"
+
+TOOLS="__TOOLS__"
+
+is_tool() {
+    base="$(basename "$1")"
+    for t in $TOOLS; do
+        if [ "$base" = "$t" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+find "$PATCH_ROOT" -type f | while IFS= read -r src; do
+    rel="${src#$PATCH_ROOT/}"
+    if is_tool "$rel"; then
+        continue
+    fi
+    dst="$TARGET_DIR/$rel"
+    if [ -f "$dst.ul_orig" ]; then
+        mv -f "$dst.ul_orig" "$dst"
+    elif [ -f "$dst.ul_new" ]; then
+        rm -f "$dst" "$dst.ul_new"
+    fi
+done
+
+find "$PATCH_ROOT" -depth -type d | while IFS= read -r dir; do
+    rel="${dir#$PATCH_ROOT}"
+    if [ -n "$rel" ]; then
+        rmdir "$TARGET_DIR$rel" 2>/dev/null || true
+    fi
+done
+
+echo ""
+echo "[SUCCESS] Original game files restored. You can delete this patch folder now."
+echo ""
+exit 0
+"""
+
 _README = """=======================================================
   __GAME__ - Offline Patch [__LANG__]
   Powered by UnityLocalizer __VERSION__
@@ -147,6 +285,13 @@ _README = """=======================================================
    değiştirdiği dosyalar (başka modlarınıza ait olanlar dahil) eski hâline döner.
    Ardından yama klasörünü silebilirsiniz.
 
+[TR] STEAM DECK / LINUX (PROTON) KULLANICILARI:
+1. Yama klasörünü oyunun içine kopyalayın.
+2. Terminal açıp 'bash Install_Patch.sh' (veya 'bash Yama_Kur.sh') çalıştırın.
+3. Steam'de oyuna sağ tıklayıp Özellikler > Başlatma Seçenekleri kutusuna şunu yapıştırın:
+   WINEDLLOVERRIDES="winhttp=n,b" %command%
+4. Oyunu başlatın!
+
 [EN] INSTALLATION INSTRUCTIONS:
 1. Extract the ZIP into the game's main folder (next to the game .exe); the patch
    folder it contains must sit inside the game folder.
@@ -155,6 +300,13 @@ _README = """=======================================================
 4. To remove it, run 'Uninstall_Patch.bat' from the same folder; every file the
    patch replaced (including files of your other mods) is restored. You can then
    delete the patch folder.
+
+[EN] STEAM DECK / LINUX (PROTON) USERS:
+1. Copy the patch folder into the game folder.
+2. Open terminal and run 'bash Install_Patch.sh'.
+3. In Steam, right-click game > Properties > Launch Options and paste:
+   WINEDLLOVERRIDES="winhttp=n,b" %command%
+4. Launch the game!
 """
 
 
@@ -169,13 +321,24 @@ def _script(body: str, target_lang: str) -> str:
     return _crlf(_PRELUDE + body.replace(_LANG_TOKEN, safe_lang) + common)
 
 
+def _sh_script(body: str, target_lang: str) -> str:
+    """Linux shell script with POSIX LF line endings."""
+    safe_lang = safe_lang_segment(target_lang).upper()
+    tools = " ".join(PATCH_TOOL_FILES)
+    return body.replace(_LANG_TOKEN, safe_lang).replace("__TOOLS__", tools).replace("\r\n", "\n")
+
+
 def write_scripts(patch_dir: Path, target_lang: str) -> None:
-    """Write the 1-click install and uninstall scripts (Turkish and English names)."""
+    """Write the 1-click install and uninstall scripts (Windows .bat and Linux .sh)."""
     install = _script(_INSTALL_BODY, target_lang)
     uninstall = _script(_UNINSTALL_BODY, target_lang)
+    install_sh = _sh_script(_INSTALL_SH, target_lang)
+    uninstall_sh = _sh_script(_UNINSTALL_SH, target_lang)
     for name, content in (
         ("Yama_Kur.bat", install), ("Install_Patch.bat", install),
         ("Yama_Kaldir.bat", uninstall), ("Uninstall_Patch.bat", uninstall),
+        ("Yama_Kur.sh", install_sh), ("Install_Patch.sh", install_sh),
+        ("Yama_Kaldir.sh", uninstall_sh), ("Uninstall_Patch.sh", uninstall_sh),
     ):
         safe_write(patch_dir / name, content, encoding="utf-8", make_backup=False)
 

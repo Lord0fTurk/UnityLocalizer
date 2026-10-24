@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import logging
+import shutil
 from pathlib import Path
 
 from src.core.hook_layout import AUTOTRANSLATOR_CONFIG, XUNITY_TEXT_DIRECTORY
@@ -15,24 +16,61 @@ logger = logging.getLogger(__name__)
 # Directories (relative to game root) where TMP font AssetBundles are conventionally placed.
 TMP_BUNDLE_DIRS: tuple[str, ...] = ("BepInEx/font", "BepInEx/fonts", ".")
 
+# Reliable OS TrueType fonts for IL2CPP builds whose stripped runtime cannot load AssetBundles.
+DEFAULT_IL2CPP_SYSTEM_FONTS: dict[str, str] = {
+    "zh": "SimHei",
+    "ja": "Meiryo",
+    "ko": "Malgun Gothic",
+    "ar": "Segoe UI",
+    "fa": "Segoe UI",
+    "he": "Segoe UI",
+    "ru": "Arial",
+    "uk": "Arial",
+    "be": "Arial",
+    "tr": "Arial",
+}
+FALLBACK_IL2CPP_SYSTEM_FONT: str = "Arial"
+
 # Written only when missing, so a user's later tuning of these options survives re-runs.
 _LAYOUT_SAFE_DEFAULTS: IniValues = {
     "TextFrameworks": {
         "EnableTextMeshPro": "True", "EnableUGUI": "True", "EnableNGUI": "True",
-        "EnableTextMesh": "True", "EnableIMGUI": "True",
+        "EnableTextMesh": "True", "EnableIMGUI": "True", "EnableFairyGUI": "True",
     },
     "Behaviour": {
         "MaxCharactersPerTranslation": "2500", "IgnoreWhitespaceInDialogue": "True",
-        "MinDialogueChars": "2", "ForceUIResizing": "False", "EnableUIResizing": "True",
+        "MinDialogueChars": "1", "ForceUIResizing": "False", "EnableUIResizing": "True",
+        "CacheRegexPatternResults": "True",
         "OverrideFont": "", "OverrideFontTextMeshPro": "", "FallbackFontTextMeshPro": "",
         "CopyToClipboard": "False", "EnableTextureTranslation": "False",
         "EnableTextureDumping": "False", "EnableTextureReloading": "False",
+        "EnableTranslationScoping": "False", "IgnoreVirtualTextSetterCallingRules": "True",
+        "ForceMonoModHooks": "True",
     },
 }
 
 
 class FontBootstrap:
     """Configures TMP fallback font bundles and AutoTranslator INI settings."""
+
+    @classmethod
+    def install_custom_font(cls, game_dir: Path | str, font_path: Path | str) -> str:
+        """Copy a user-provided .ttf/.otf font into BepInEx/fonts/ and return relative path.
+
+        Raises FileNotFoundError if font does not exist, or ValueError if not a font file.
+        """
+        source = Path(font_path)
+        if not source.is_file():
+            raise FileNotFoundError(f"Font file not found: {source}")
+        if source.suffix.lower() not in {".ttf", ".otf"}:
+            raise ValueError(f"Unsupported font format {source.suffix}; expected .ttf or .otf")
+
+        target_dir = Path(game_dir) / "BepInEx" / "fonts"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_file = target_dir / source.name
+        shutil.copy2(source, target_file)
+        logger.info("Installed custom font %s to %s", source.name, target_file)
+        return f"BepInEx/fonts/{source.name}"
 
     @classmethod
     def inject_font(
@@ -43,6 +81,8 @@ class FontBootstrap:
         make_backup: bool = True,
         tmp_override_font: str | None = None,
         preferred_bundle: Path | None = None,
+        override_font: str | None = None,
+        is_il2cpp: bool = False,
     ) -> bool:
         """Wire a detected TMP font bundle into an offline-only AutoTranslatorConfig.ini.
 
@@ -52,23 +92,38 @@ class FontBootstrap:
         ``Arial`` is loaded as a TMP font by XUnity 5.6.2+ (TextMeshPro 3.2+), the
         workaround for IL2CPP builds whose stripped AssetBundle API cannot load the
         fallback bundle; an empty string switches the override off.
+        ``override_font`` sets XUnity's ``OverrideFont`` (uGUI / UnityEngine.UI.Text).
+        When ``is_il2cpp`` is True, stripped AssetBundle loading is avoided and
+        a reliable OS system font (e.g. Arial, SimHei) is selected automatically.
         """
         game_path = Path(game_dir)
         if not game_path.is_dir():
             raise NotADirectoryError(f"Game directory not found: {game_path}")
 
-        bundle = cls._resolve_preferred_bundle(game_path, preferred_bundle) or cls.find_tmp_font_bundle(game_path)
-        if bundle is None:
-            logger.warning(
-                "No TMP font AssetBundle found; missing glyphs may render as tofu in TextMeshPro"
-            )
         config_path = game_path / AUTOTRANSLATOR_CONFIG
         behaviour: dict[str, str] = {}
-        if bundle:
-            behaviour["FallbackFontTextMeshPro"] = bundle
+        base_target = target_lang.split("-")[0].lower()
+        if is_il2cpp:
+            # AssetBundle loading is stripped in IL2CPP runtime; rely on OS system font via OverrideFontTextMeshPro.
+            behaviour["FallbackFontTextMeshPro"] = ""
+            if tmp_override_font is None:
+                tmp_override_font = DEFAULT_IL2CPP_SYSTEM_FONTS.get(base_target, FALLBACK_IL2CPP_SYSTEM_FONT)
+        else:
+            bundle = cls._resolve_preferred_bundle(game_path, preferred_bundle) or cls.find_tmp_font_bundle(game_path)
+            if bundle:
+                behaviour["FallbackFontTextMeshPro"] = bundle
+            elif tmp_override_font is None:
+                logger.warning(
+                    "No TMP font AssetBundle found; missing glyphs may render as tofu in TextMeshPro"
+                )
+
         if tmp_override_font is not None:
             behaviour["OverrideFontTextMeshPro"] = tmp_override_font.strip()
-        return cls._write_optimized_config(config_path, target_lang, behaviour, source_lang, make_backup)
+        if override_font is not None:
+            behaviour["OverrideFont"] = override_font.strip()
+        return cls._write_optimized_config(
+            config_path, target_lang, behaviour, source_lang, make_backup, is_il2cpp=is_il2cpp
+        )
 
     @staticmethod
     def _resolve_preferred_bundle(game_path: Path, preferred_bundle: Path | None) -> str | None:
@@ -104,6 +159,7 @@ class FontBootstrap:
         behaviour: dict[str, str] | None = None,
         source_lang: str = "en",
         make_backup: bool = True,
+        is_il2cpp: bool = False,
     ) -> bool:
         """Merge the offline settings into AutoTranslatorConfig.ini, keeping the user's other options.
 
@@ -122,7 +178,15 @@ class FontBootstrap:
                 "OutputFile": rf"{XUNITY_TEXT_DIRECTORY}\_AutoGeneratedTranslations.txt",
                 "SubstitutionFile": rf"{XUNITY_TEXT_DIRECTORY}\_Substitutions.txt",
             },
+            "Behaviour": {
+                "EnableTranslationScoping": "False",
+                "IgnoreVirtualTextSetterCallingRules": "True",
+                "ForceMonoModHooks": "True",
+            },
         }
+        if is_il2cpp:
+            # IMGUI hooks are not implemented in IL2CPP XUnity and trigger NotImplementedException.
+            forced["TextFrameworks"] = {"EnableIMGUI": "False"}
         if behaviour:
             forced["Behaviour"] = dict(behaviour)
         try:

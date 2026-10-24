@@ -27,7 +27,13 @@ from src.core.parsers.streaming_assets import SUPPORTED_SUFFIXES, StreamingAsset
 from src.core.pipeline.orchestrator import UnityTranslationPipeline
 from src.core.pipeline.patch_exporter import PatchExporter, archive_path
 from src.core.pipeline.translation_runner import TranslationEngineError
-from src.core.progress import CancelToken, OperationCancelled, ProgressEvent, ProgressLogFilter
+from src.core.progress import (
+    NOTIFICATION_LEVELS,
+    CancelToken,
+    OperationCancelled,
+    ProgressEvent,
+    ProgressLogFilter,
+)
 from src.core.languages import Language, engine_supports, get_language, languages_for_engine
 from src.core.rtl_shaper import is_rtl_language
 from src.core.translators.base import TranslationEngine
@@ -36,7 +42,7 @@ from src.backend.locale_manager import LocaleManager
 from src.backend.settings_schema import SETTING_SPECS, coerce_setting
 from src.utils.config import DEFAULT_CONFIG, ConfigManager
 from src.utils.logger import mask_secrets
-from src.utils.paths import get_patches_dir
+from src.utils.paths import get_patches_dir, resource_path
 from src.version import VERSION
 
 logger = logging.getLogger(__name__)
@@ -100,6 +106,7 @@ class AppBackend(QObject):
     reviewReady = pyqtSignal(object)
     cacheChanged = pyqtSignal()
     glossaryChanged = pyqtSignal()
+    pipelineCompleted = pyqtSignal("QVariantMap", arguments=["summary"])
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -186,6 +193,11 @@ class AppBackend(QObject):
             self._progress_msg = message
             should_log = self._progress_log_filter.should_log(event)
         self.progressChanged.emit()
+        level = NOTIFICATION_LEVELS.get(event.key)
+        if level:
+            self.add_log(level, message)
+            self.toastRequested.emit(message, level)
+            return
         if not should_log:
             return
         # Templates without their own counters get a "[n/m]" prefix (e.g. harvest phases).
@@ -420,6 +432,10 @@ class AppBackend(QObject):
         """System font for XUnity's OverrideFontTextMeshPro ('' = off), from Settings."""
         return str(self.config.get("tmp_system_font", "") or "").strip()
 
+    def _override_font_ugui(self) -> str:
+        """Font for XUnity's OverrideFont (uGUI), from Settings."""
+        return str(self.config.get("override_font_ugui", "") or "").strip()
+
     def _selected_engine_enum(self) -> TranslationEngine:
         """Configured engine, falling back to Google for unknown values."""
         try:
@@ -431,6 +447,7 @@ class AppBackend(QObject):
         """Run the unified pipeline with the current settings and publish the review."""
         self.pipeline.runner.batch_size = max(1, self.batchSize)
         self.pipeline.tmp_override_font = self._tmp_override_font()
+        self.pipeline.override_font = self._override_font_ugui()
         total = self.pipeline.run_unified_localization_pipeline(
             self._game_dir(),
             target_lang=self.targetLanguage,
@@ -438,6 +455,8 @@ class AppBackend(QObject):
             patch_loose_files=self.patchLooseFiles,
             source_lang=self.sourceLanguage,
             rtl_shaping=self.rtlStaticShaping,
+            bilingual_mode=bool(self.config.get("bilingual_mode", False)),
+            bilingual_template=str(self.config.get("bilingual_template", "{target}\n({source})")),
             cancel=cancel,
         )
         if self.pipeline.last_session is not None:
@@ -477,6 +496,31 @@ class AppBackend(QObject):
         self._set_status("dashboard.status_completed", count=total)
         if not self._profile_hook_ready():
             self.add_log("warning", "dashboard.status_hook_missing_proxy")
+
+        # Publish completion summary event for UI modal
+        harvested = self.pipeline.last_harvest_count
+        failed = 0
+        rejected = 0
+        unchanged = 0
+        if self.pipeline.last_session is not None:
+            failed = sum(1 for r in self.pipeline.last_session.rows if r.status == "failed")
+            rejected = sum(1 for r in self.pipeline.last_session.rows if r.status in ("rejected", "invalid"))
+            unchanged = sum(1 for r in self.pipeline.last_session.rows if r.status == "unchanged")
+
+        rate_val = (total / harvested * 100) if harvested > 0 else 100.0
+        summary = {
+            "total_harvested": harvested,
+            "translated_count": total,
+            "failed_count": failed,
+            "rejected_count": rejected,
+            "unchanged_count": unchanged,
+            "success_rate": f"{rate_val:.1f}%",
+            "game_name": self._game_dir().name,
+            "game_path": str(self._game_dir()),
+            "target_lang": self.targetLanguage,
+            "has_exe": bool(self._profile and self._profile.game_exe and self._profile.game_exe.is_file()),
+        }
+        self.pipelineCompleted.emit(summary)
 
     def _profile_hook_ready(self) -> bool:
         """Re-check the hook after a run: translations only show up in game with it."""
@@ -574,6 +618,42 @@ class AppBackend(QObject):
         profile = self._profile
         self._run_in_background(lambda: self._provision_font(profile))
 
+    @pyqtSlot(str, str, str, result=bool)
+    def applyFontConfiguration(self, preset: str, custom_ttf_path: str = "", system_font_name: str = "") -> bool:
+        """Configure font settings for uGUI and TMP, installing font files if needed."""
+        if self._profile is None:
+            self._notify("error", "dashboard.select_game_first")
+            return False
+        profile = self._profile
+        preset = preset.strip().lower()
+        try:
+            if preset == "custom_ttf":
+                local = _local_path(custom_ttf_path)
+                if not local:
+                    self._notify("error", "toolbox.font_custom_path_required")
+                    return False
+                rel_path = FontBootstrap.install_custom_font(profile.game_path, local)
+                self.setSetting("custom_font_path", local)
+                self.setSetting("override_font_ugui", rel_path)
+                self.setSetting("font_preset", "custom_ttf")
+            elif preset == "system_font":
+                sys_font = (system_font_name or "Arial").strip()
+                self.setSetting("override_font_ugui", sys_font)
+                self.setSetting("tmp_system_font", sys_font)
+                self.setSetting("font_preset", "system_font")
+            else:
+                self.setSetting("override_font_ugui", "")
+                self.setSetting("tmp_system_font", "")
+                self.setSetting("font_preset", "default_arial")
+
+            self.injectFont()
+            return True
+        except Exception as exc:
+            logger.exception("Failed configuring font")
+            self.add_log("error", "toolbox.font_custom_error", error=str(exc))
+            self._notify("error", "toolbox.font_custom_error")
+            return False
+
     def _provision_font(self, profile: UnityGameProfile) -> None:
         """Background job: download/deploy the TMP bundle (cached) and write the INI."""
         try:
@@ -584,6 +664,7 @@ class AppBackend(QObject):
                 source_lang=resolve_source_language(self.sourceLanguage),
                 tmp_override_font=self._tmp_override_font(),
                 preferred_bundle=font_bundle,
+                override_font=self._override_font_ugui(),
             )
             key = "toolbox.font_inject_success" if success else "toolbox.font_inject_fail"
             self._notify("success" if success else "error", key)
@@ -685,6 +766,30 @@ class AppBackend(QObject):
         if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(patch_root))):
             logger.warning("Could not open patch folder %s", patch_root)
             self.add_log("error", "dashboard.status_error", error=str(patch_root))
+
+    @pyqtSlot()
+    def openGameFolder(self) -> None:
+        """Open the active game folder in the system file manager."""
+        if not self._game_path:
+            return
+        folder = self._game_dir()
+        if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder))):
+            logger.warning("Could not open game folder %s", folder)
+
+    @pyqtSlot()
+    def launchGame(self) -> None:
+        """Launch the profiled game executable (non-blocking)."""
+        if not self._profile or not self._profile.game_exe or not self._profile.game_exe.is_file():
+            self._notify("error", "dashboard.game_exe_not_found")
+            return
+        exe = self._profile.game_exe
+        try:
+            import subprocess
+            subprocess.Popen([str(exe)], cwd=str(exe.parent))
+            self._notify("info", "dashboard.game_launched")
+        except Exception as exc:
+            logger.error("Failed to launch game executable %s: %s", exe, exc)
+            self._notify("error", "dashboard.status_error", error=str(exc))
 
     @pyqtSlot()
     def uninstallHooks(self) -> None:
@@ -827,6 +932,12 @@ class AppBackend(QObject):
         if cb:
             cb.setText(text)
             self.add_log("info", "console.logs_copied")
+
+    @pyqtSlot(str, result=str)
+    def get_asset_url(self, relative_path: str) -> str:
+        """Return a QUrl string for a relative asset path (frozen bundle and dev compatible)."""
+        full = resource_path(relative_path)
+        return QUrl.fromLocalFile(str(full)).toString()
 
     def shutdown(self) -> None:
         """Release engine sessions; cached translations stay on disk for the next run."""

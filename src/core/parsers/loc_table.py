@@ -11,7 +11,13 @@ from __future__ import annotations
 import csv
 import io
 import re
+import sys
 from dataclasses import dataclass
+
+try:
+    csv.field_size_limit(sys.maxsize)
+except OverflowError:
+    csv.field_size_limit(2147483647)
 
 # Base language code -> lowercase header aliases (English and native names).
 LANGUAGE_ALIASES: dict[str, tuple[str, ...]] = {
@@ -122,7 +128,10 @@ def detect_layout(header: list[str], source_lang: str = "en", target_lang: str =
 
 def parse_rows(text: str, delimiter: str) -> list[list[str]]:
     """Parse delimited text into rows."""
-    return list(csv.reader(io.StringIO(text), delimiter=delimiter))
+    try:
+        return list(csv.reader(io.StringIO(text), delimiter=delimiter))
+    except (csv.Error, OverflowError):
+        return []
 
 
 def table_strings(rows: list[list[str]], layout: TableLayout) -> list[str]:

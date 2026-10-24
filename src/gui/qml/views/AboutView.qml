@@ -2,21 +2,22 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Material
 import QtQuick.Layouts
+import "../components"
 
 ScrollView {
     id: root
     contentWidth: availableWidth
     clip: true
 
-    readonly property color clrBg:         "#0B0F17"
-    readonly property color clrCard:       "#151A29"
-    readonly property color clrCardHover:  "#1D2436"
-    readonly property color clrCardBorder: "#242C44"
-    readonly property color clrAccent:     "#00F2FE"
-    readonly property color clrPurple:     "#A855F7"
-    readonly property color clrTxt:        "#F3F4F6"
-    readonly property color clrTxt2:       "#9CA3AF"
-    readonly property color clrTxtDim:     "#6B7280"
+    readonly property color clrBg:         Theme.canvas
+    readonly property color clrCard:       Theme.surfaceCard
+    readonly property color clrCardHover:  Theme.surfaceHover
+    readonly property color clrCardBorder: Theme.borderCard
+    readonly property color clrAccent:     Theme.accentSolid
+    readonly property color clrPurple:     Theme.isDark ? Theme.accentHover : Theme.accentSolid
+    readonly property color clrTxt:        Theme.textPrimary
+    readonly property color clrTxt2:       Theme.textSecondary
+    readonly property color clrTxtDim:     Theme.textMuted
 
     function t(key) {
         return (localeManager && localeManager.currentLanguage, localeManager ? localeManager.t(key) : "");
@@ -35,14 +36,18 @@ ScrollView {
             spacing: 10
 
             Rectangle {
-                width: 64; height: 64; radius: 32
+                width: 64; height: 64; radius: 16
                 anchors.horizontalCenter: parent.horizontalCenter
-                color: Qt.rgba(0, 242/255, 254/255, 0.12)
-                border.color: Qt.rgba(0, 242/255, 254/255, 0.3); border.width: 1
-                Label {
-                    anchors.centerIn: parent
-                    text: "🎮"
-                    font.pixelSize: 32
+                color: Theme.accentAlpha(0.12)
+                border.color: Theme.accentAlpha(0.3); border.width: 1
+                Image {
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    source: appBackend ? appBackend.get_asset_url("icon.png") : ""
+                    sourceSize: Qt.size(64, 64)
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                    mipmap: true
                 }
             }
 
@@ -54,35 +59,36 @@ ScrollView {
                 anchors.horizontalCenter: parent.horizontalCenter
             }
 
-            // Version Pill Badge
+            // Version Pill Badge (DESIGN.md §3.6: radius 4px)
             Rectangle {
                 anchors.horizontalCenter: parent.horizontalCenter
                 implicitWidth: versionLayout.implicitWidth + 20
-                implicitHeight: 24
-                radius: 12
-                color: Qt.rgba(0, 242/255, 254/255, 0.1)
-                border.color: Qt.rgba(0, 242/255, 254/255, 0.3); border.width: 1
+                implicitHeight: Theme.heightBadge
+                radius: Theme.radiusBadge
+                color: Theme.accentSubtle
+                border.color: Theme.accentBorder
+                border.width: 1
 
                 RowLayout {
                     id: versionLayout
                     anchors.centerIn: parent
                     spacing: 6
 
-                    Rectangle { width: 6; height: 6; radius: 3; color: clrAccent }
+                    Rectangle { width: 6; height: 6; radius: 3; color: Theme.accentSolid }
                     Label {
                         property string ver: appBackend ? appBackend.version : "0.1.0"
                         text: root.t("about.edition").replace("{version}", ver)
                         font.pixelSize: 11
                         font.bold: true
-                        color: clrAccent
+                        color: Theme.isDark ? Theme.accentHover : Theme.accentSolid
                     }
                 }
             }
 
             Label {
                 text: root.t("about.tagline")
-                font.pixelSize: 14
-                color: clrTxt2
+                font.pixelSize: 13
+                color: Theme.textSecondary
                 anchors.horizontalCenter: parent.horizontalCenter
             }
         }
@@ -91,9 +97,9 @@ ScrollView {
         Rectangle {
             width: parent.width
             implicitHeight: descCol.implicitHeight + 36
-            radius: 14
-            color: clrCard
-            border.color: clrCardBorder
+            radius: Theme.radiusCard
+            color: Theme.surfaceCard
+            border.color: Theme.borderCard
             border.width: 1
 
             ColumnLayout {
@@ -106,27 +112,27 @@ ScrollView {
 
                 Label {
                     text: "📖 " + root.t("about.card_title")
-                    font.pixelSize: 17
+                    font.pixelSize: 15
                     font.bold: true
-                    color: clrTxt
+                    color: Theme.textPrimary
                 }
 
                 Label {
                     text: root.t("about.description")
-                    color: clrTxt2
+                    color: Theme.textSecondary
                     font.pixelSize: 13
                     wrapMode: Text.WordWrap
                     Layout.fillWidth: true
                     lineHeight: 1.4
                 }
 
-                Rectangle { Layout.fillWidth: true; height: 1; color: clrCardBorder }
+                Rectangle { Layout.fillWidth: true; height: 1; color: Theme.borderCard }
 
                 Label {
                     text: "🛠️ " + root.t("about.tech_title")
                     font.pixelSize: 15
                     font.bold: true
-                    color: clrTxt
+                    color: Theme.textPrimary
                 }
 
                 Flow {
@@ -142,35 +148,36 @@ ScrollView {
                         ]
                         delegate: Rectangle {
                             implicitWidth: techText.implicitWidth + 16
-                            implicitHeight: 26
-                            radius: 13
-                            color: Qt.rgba(139/255, 92/255, 246/255, 0.12)
-                            border.color: Qt.rgba(139/255, 92/255, 246/255, 0.4); border.width: 1
+                            implicitHeight: Theme.heightBadge
+                            radius: Theme.radiusBadge
+                            color: Theme.surfaceControl
+                            border.color: Theme.borderControl
+                            border.width: 1
                             Label {
                                 id: techText
                                 anchors.centerIn: parent
                                 text: modelData
                                 font.pixelSize: 11
-                                font.bold: true
-                                color: clrPurple
+                                font.weight: Font.Medium
+                                color: Theme.textSecondary
                             }
                         }
                     }
                 }
 
-                Rectangle { Layout.fillWidth: true; height: 1; color: clrCardBorder }
+                Rectangle { Layout.fillWidth: true; height: 1; color: Theme.borderCard }
 
                 RowLayout {
                     Layout.fillWidth: true
                     Label {
                         text: "⚖️ " + root.t("about.license_label")
-                        color: clrTxtDim
+                        color: Theme.textMuted
                         font.pixelSize: 12
                     }
                     Item { Layout.fillWidth: true }
                     Label {
                         text: root.t("about.open_source")
-                        color: clrAccent
+                        color: Theme.accentSolid
                         font.pixelSize: 12
                         font.bold: true
                     }

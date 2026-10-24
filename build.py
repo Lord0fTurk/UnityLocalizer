@@ -75,9 +75,12 @@ def get_collect_args() -> list[str]:
     """Packages whose data files or lazily imported modules PyInstaller cannot see.
 
     UnityPy reads its class database (``resources/lzma.tpk``) through
-    importlib.resources and imports helpers lazily; py7zr picks codecs at runtime.
+    importlib.resources and imports helpers lazily; py7zr picks codecs at runtime;
+    py3langid loads its language model from a ``data`` file next to the module.
     """
-    args: list[str] = ["--collect-all", "UnityPy", "--collect-submodules", "py7zr"]
+    args: list[str] = [
+        "--collect-all", "UnityPy", "--collect-submodules", "py7zr", "--collect-all", "py3langid",
+    ]
     return args
 
 

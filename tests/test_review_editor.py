@@ -186,3 +186,21 @@ def test_issue_descriptions_are_localized() -> None:
     LocaleManager(default_lang="tr")
     text = describe_issues([("missing", ["{0}"]), ("unexpected", ["<b>", "</b>"])])
     assert text == "Eksik etiket/yer tutucu: {0}; Fazladan etiket/yer tutucu: <b> </b>"
+
+
+def test_bilingual_mode_formatting() -> None:
+    from src.core.pipeline.orchestrator import make_bilingual, apply_bilingual_mode, prepare_for_display
+
+    assert make_bilingual("Hello", "Selam") == "Selam\n(Hello)"
+    assert make_bilingual("OK", "OK") == "OK"
+    assert make_bilingual("+", "+") == "+"
+    assert make_bilingual("X", "Kapat") == "Kapat"
+
+    batch = {"Start": "Başla", "Continue": "Devam Et", "X": "X"}
+    bilingual = apply_bilingual_mode(batch)
+    assert bilingual["Start"] == "Başla\n(Start)"
+    assert bilingual["Continue"] == "Devam Et\n(Continue)"
+    assert bilingual["X"] == "X"
+
+    prepared = prepare_for_display(batch, "tr", rtl_shaping=False, bilingual_mode=True)
+    assert prepared["Start"] == "Başla\n(Start)"

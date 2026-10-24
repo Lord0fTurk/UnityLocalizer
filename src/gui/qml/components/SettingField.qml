@@ -22,7 +22,7 @@ ColumnLayout {
     Label {
         visible: field.label.length > 0
         text: field.label
-        color: "#9CA3AF"
+        color: Theme.textSecondary
         font.pixelSize: 12
         font.bold: true
     }
@@ -31,21 +31,21 @@ ColumnLayout {
     Basic.TextField {
         id: input
         Layout.fillWidth: true
-        Layout.preferredHeight: 40
+        Layout.preferredHeight: Theme.heightInput
         leftPadding: 12
         rightPadding: 12
         verticalAlignment: TextInput.AlignVCenter
-        placeholderTextColor: "#6B7280"
-        selectionColor: Qt.rgba(0, 0.95, 1, 0.35)
+        placeholderTextColor: Theme.textMuted
+        selectionColor: Theme.accentAlpha(0.35)
         text: field.storedValue
         echoMode: field.password ? TextInput.Password : TextInput.Normal
         placeholderText: field.placeholder
-        color: "#F3F4F6"
+        color: Theme.textPrimary
         selectByMouse: true
         background: Rectangle {
-            radius: 8
-            color: "#0E121D"
-            border.color: input.activeFocus ? "#00F2FE" : "#242C44"
+            radius: Theme.radiusControl
+            color: Theme.surfaceControl
+            border.color: input.activeFocus ? Theme.borderFocus : Theme.borderControl
             border.width: 1
         }
         onEditingFinished: {
@@ -64,7 +64,7 @@ ColumnLayout {
         visible: field.hint.length > 0
         text: field.hint
         wrapMode: Text.WordWrap
-        color: "#6B7280"
+        color: Theme.textMuted
         font.pixelSize: 11
     }
 }

@@ -51,6 +51,13 @@ SETTING_SPECS: dict[str, SettingSpec] = {
     "proxy_list": _TEXT,
     "use_cache": _BOOL,
     "tmp_system_font": _TEXT,
+    "custom_font_path": _TEXT,
+    "override_font_ugui": _TEXT,
+    "font_preset": SettingSpec(str, choices=("default_arial", "custom_ttf", "system_font")),
+    "theme_mode": SettingSpec(str, choices=("obsidian", "daylight", "cyber_neon")),
+    "accent_preset": SettingSpec(str, choices=("cyan", "emerald", "indigo", "amber")),
+    "bilingual_mode": _BOOL,
+    "bilingual_template": _TEXT,
     # Engines
     "deepl_key": _TEXT,
     "deepl_formality": SettingSpec(str, choices=tuple(FORMALITY_VALUES)),

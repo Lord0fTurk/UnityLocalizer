@@ -18,8 +18,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "source_language": "auto",
     "rtl_static_shaping": True,
     "patch_loose_files": False,
+    "bilingual_mode": False,
+    "bilingual_template": "{target}\n({source})",
     # XUnity OverrideFontTextMeshPro: system font for IL2CPP games whose fallback bundle fails ("" = off)
     "tmp_system_font": "",
+    # uGUI / TMP Font Manager options
+    "custom_font_path": "",
+    "override_font_ugui": "",
+    "font_preset": "default_arial",
     "deepl_key": "",
     "ui_language": "tr",
     # Session (restored on next start)
@@ -72,6 +78,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "local_llm_url": "http://localhost:11434",
     "local_llm_model": "qwen2.5:latest",
     "theme": "Dark",
+    "theme_mode": "obsidian",
+    "accent_preset": "cyan",
     "enable_auto_backup": True,
     "max_retries": 3,
 }

@@ -88,10 +88,12 @@ def main() -> int:
     app.setOrganizationName("UnityLocalizer")
 
     # Set icon if present
+    app_icon = QIcon()
     for icon_name in ["icon.png", "icon.ico"]:
         icon_path = resource_path(icon_name)
         if icon_path.is_file():
-            app.setWindowIcon(QIcon(str(icon_path)))
+            app_icon = QIcon(str(icon_path))
+            app.setWindowIcon(app_icon)
             break
 
     # Copy pre-data-directory user data (config, glossary, cache, logs) once.
@@ -118,6 +120,7 @@ def main() -> int:
     # Add QML import path
     qml_dir = resource_path("src/gui/qml")
     engine.addImportPath(str(qml_dir))
+    engine.addImportPath(str(qml_dir / "components"))
 
     # Load main QML
     qml_path = qml_dir / "Main.qml"
@@ -126,6 +129,56 @@ def main() -> int:
     if not engine.rootObjects():
         logger.fatal("Failed to load QML root object from %s", qml_path)
         return 1
+
+    root_window = engine.rootObjects()[0]
+    if not app_icon.isNull() and hasattr(root_window, "setIcon"):
+        root_window.setIcon(app_icon)
+
+    # Windows taskbar icon — natif Win32 WM_SETICON yolu
+    ico_path = resource_path("icon.ico")
+    if sys.platform == "win32" and ico_path.is_file():
+        def _apply_win_icon() -> None:
+            try:
+                import ctypes
+                from ctypes import wintypes
+                user32 = ctypes.windll.user32
+                hwnd = int(root_window.winId())
+                if not hwnd:
+                    return
+                ico_str = str(ico_path)
+
+                user32.LoadImageW.argtypes = [
+                    wintypes.HINSTANCE,
+                    wintypes.LPCWSTR,
+                    wintypes.UINT,
+                    ctypes.c_int,
+                    ctypes.c_int,
+                    wintypes.UINT,
+                ]
+                user32.LoadImageW.restype = wintypes.HANDLE
+
+                user32.SendMessageW.argtypes = [
+                    wintypes.HWND,
+                    wintypes.UINT,
+                    wintypes.WPARAM,
+                    wintypes.LPARAM,
+                ]
+                user32.SendMessageW.restype = wintypes.LPARAM
+
+                # 1 = IMAGE_ICON, 0x10 = LR_LOADFROMFILE
+                h_small = user32.LoadImageW(None, ico_str, 1, 16, 16, 0x10)
+                h_big = user32.LoadImageW(None, ico_str, 1, 32, 32, 0x10)
+                if h_small:
+                    user32.SendMessageW(hwnd, 0x80, 0, h_small)  # WM_SETICON, ICON_SMALL
+                if h_big:
+                    user32.SendMessageW(hwnd, 0x80, 1, h_big)    # WM_SETICON, ICON_BIG
+            except Exception:
+                pass
+
+        _apply_win_icon()
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(200, _apply_win_icon)
+        QTimer.singleShot(500, _apply_win_icon)
 
     logger.info("UI loaded successfully.")
     app_backend.restoreLastSession()

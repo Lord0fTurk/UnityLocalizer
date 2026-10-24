@@ -36,14 +36,14 @@ Item {
         id: toastCard
         width: parent.width
         implicitHeight: contentRow.implicitHeight + 24
-        radius: 12
-        color: "#182032"
+        radius: Theme.radiusCard
+        color: Theme.surfaceCard
         border.width: 1
         border.color: {
-            if (toastType === "success") return "#10B981";
-            if (toastType === "error") return "#EF4444";
-            if (toastType === "warning") return "#F59E0B";
-            return "#00F2FE";
+            if (toastType === "success") return Theme.statusSuccess;
+            if (toastType === "error") return Theme.statusDanger;
+            if (toastType === "warning") return Theme.statusWarning;
+            return Theme.accentSolid;
         }
 
         y: 20
@@ -71,7 +71,7 @@ Item {
             Text {
                 Layout.fillWidth: true
                 text: root.message
-                color: "#F3F4F6"
+                color: Theme.textPrimary
                 font.pixelSize: 13
                 wrapMode: Text.WordWrap
                 lineHeight: 1.2
@@ -88,7 +88,7 @@ Item {
                 Text {
                     anchors.centerIn: parent
                     text: "✕"
-                    color: "#9CA3AF"
+                    color: Theme.textMuted
                     font.pixelSize: 12
                 }
             }

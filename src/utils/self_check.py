@@ -48,6 +48,15 @@ def _engines() -> None:
     from google import genai  # noqa: F401
 
 
+def _language_detection() -> None:
+    from src.core.lang_detect.offline_detector import detect_offline
+
+    english = ["The quick brown fox jumps over the lazy dog near the river bank."] * 10
+    result = detect_offline(english)
+    if result is None or result[0] != "en":
+        raise RuntimeError(f"Offline language model gave {result!r} for English text")
+
+
 def _ui_resources() -> None:
     from src.utils.paths import resource_path
 
@@ -62,6 +71,7 @@ CHECKS: dict[str, Callable[[], None]] = {
     "rtl-shaping": _rtl_shaping,
     "binary-readers": _binary_readers,
     "translation-engines": _engines,
+    "language-detection": _language_detection,
     "ui-resources": _ui_resources,
 }
 

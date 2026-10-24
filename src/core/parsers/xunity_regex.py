@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 # Upper bound of regex entries per dictionary: XUnity compiles every regex at startup
 # and tries them on each text without a direct match, so thousands would cost load time.
-MAX_REGEX_ENTRIES = 1000
+MAX_REGEX_ENTRIES = 1500
 
 # Runtime-filled placeholders (string.Format items, named Smart String / I2 / Ink
 # parameters, printf) plus the escaped braces string.Format turns into single ones.
@@ -128,12 +128,54 @@ def build_regex_entry(source: str, translation: str) -> tuple[str, str] | None:
     return f'r:"{pattern}"', f'"{replacement}"'
 
 
+# Regex matching common option/choice prefixes:
+# 1) Numbers: "1. ", "2) ", "(3) ", "[4] "
+# 2) Bullets/Arrows: "- ", "-- ", "> ", "* ", "• ", "-> "
+# 3) Roleplay / Skill checks: "[Charm] ", "[Strength 14] ", "[Lie] ", "[Success] "
+# 4) Lettered choices: "A. ", "B) ", "a) "
+_CHOICE_PREFIX_RE = (
+    r"^((?:(?:\d+[\.\)]|[\(\[]\d+[\)\]]|[A-Za-z][\.\)]|\[[A-Za-z0-9_\s\+\-]+\]|[-–—*•>]|->|=>)\s*)+)"
+)
+
+
+def is_choice_candidate(source: str) -> bool:
+    """True when source is a multi-word phrase that may appear in-game with option prefixes."""
+    stripped = source.strip()
+    if len(stripped) < 4 or len(stripped) > 120 or "\n" in stripped or "\r" in stripped:
+        return False
+    if has_runtime_placeholders(stripped) or not _has_literal_anchor(stripped):
+        return False
+    words = stripped.split()
+    return 2 <= len(words) <= 20 and any(c.isalpha() for c in stripped)
+
+
+def build_choice_prefix_entry(source: str, translation: str) -> tuple[str, str] | None:
+    """Generate a regex entry preserving dynamic choice numbering and skill tags ($1Translation)."""
+    if not is_choice_candidate(source):
+        return None
+    escaped_source = _escape_net(source.strip())
+    pattern = f"{_CHOICE_PREFIX_RE}{escaped_source}$"
+    escaped_trans = translation.replace("$", "$$")
+    replacement = f"${{1}}{escaped_trans}"
+    return f'r:"{pattern}"', f'"{replacement}"'
+
+
 def build_regex_entries(translations: Iterable[tuple[str, str]]) -> list[tuple[str, str]]:
-    """Regex entries for every placeholder string, capped at ``MAX_REGEX_ENTRIES``."""
-    entries = [entry for src, dst in translations if (entry := build_regex_entry(src, dst))]
-    if len(entries) > MAX_REGEX_ENTRIES:
-        logger.warning(
-            "%d runtime-format strings found; only the first %d get regex entries",
-            len(entries), MAX_REGEX_ENTRIES,
+    """Regex entries for runtime placeholders and dynamic choices, capped at MAX_REGEX_ENTRIES."""
+    ph_entries: list[tuple[str, str]] = []
+    ch_entries: list[tuple[str, str]] = []
+
+    for src, dst in translations:
+        if ph_entry := build_regex_entry(src, dst):
+            ph_entries.append(ph_entry)
+        elif ch_entry := build_choice_prefix_entry(src, dst):
+            ch_entries.append(ch_entry)
+
+    # Placeholder entries have priority because runtime templates never match without regex.
+    combined = ph_entries + ch_entries
+    if len(combined) > MAX_REGEX_ENTRIES:
+        logger.info(
+            "%d runtime regex candidates found (%d placeholders, %d choices); capping to %d",
+            len(combined), len(ph_entries), len(ch_entries), MAX_REGEX_ENTRIES,
         )
-    return entries[:MAX_REGEX_ENTRIES]
+    return combined[:MAX_REGEX_ENTRIES]

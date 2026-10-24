@@ -2,22 +2,23 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Controls.Material
 import QtQuick.Layouts
+import "../components"
 
 Item {
     id: root
 
-    readonly property color clrBg:         "#0B0F17"
-    readonly property color clrCard:       "#151A29"
-    readonly property color clrCardHover:  "#1D2436"
-    readonly property color clrCardBorder: "#242C44"
-    readonly property color clrInput:      "#0E121D"
-    readonly property color clrAccent:     "#00F2FE"
-    readonly property color clrWarn:       "#F59E0B"
-    readonly property color clrError:      "#EF4444"
-    readonly property color clrSuccess:    "#10B981"
-    readonly property color clrTxt:        "#F3F4F6"
-    readonly property color clrTxt2:       "#9CA3AF"
-    readonly property color clrTxtDim:     "#6B7280"
+    readonly property color clrBg:         Theme.canvas
+    readonly property color clrCard:       Theme.surfaceCard
+    readonly property color clrCardHover:  Theme.surfaceHover
+    readonly property color clrCardBorder: Theme.borderCard
+    readonly property color clrInput:      Theme.surfaceControl
+    readonly property color clrAccent:     Theme.accentSolid
+    readonly property color clrWarn:       Theme.statusWarning
+    readonly property color clrError:      Theme.statusDanger
+    readonly property color clrSuccess:    Theme.statusSuccess
+    readonly property color clrTxt:        Theme.textPrimary
+    readonly property color clrTxt2:       Theme.textSecondary
+    readonly property color clrTxtDim:     Theme.textMuted
 
     property string selectedLevel: "ALL"
     property string searchQuery: ""
@@ -38,8 +39,8 @@ Item {
 
             Rectangle {
                 width: 38; height: 38; radius: 10
-                color: Qt.rgba(0, 242/255, 254/255, 0.12)
-                border.color: Qt.rgba(0, 242/255, 254/255, 0.3); border.width: 1
+                color: Theme.accentAlpha(0.12)
+                border.color: Theme.accentAlpha(0.3); border.width: 1
                 Label { anchors.centerIn: parent; text: "📜"; font.pixelSize: 18 }
             }
 
@@ -47,58 +48,66 @@ Item {
                 spacing: 2
                 Label {
                     text: root.t("console.title")
-                    font.pixelSize: 20
+                    font.pixelSize: 22
                     font.bold: true
-                    color: clrTxt
+                    color: Theme.textPrimary
                 }
                 Label {
                     property int logCount: (appBackend && appBackend.logs ? appBackend.logs.length : 0)
                     text: root.t("console.subtitle").replace("{count}", logCount)
-                    font.pixelSize: 12
-                    color: clrTxt2
+                    font.pixelSize: 13
+                    color: Theme.textSecondary
                 }
             }
 
             Item { Layout.fillWidth: true }
 
             Button {
-                height: 36
-                text: "📋 " + root.t("console.copy_logs_btn")
+                height: Theme.heightSecondary
+                topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
                 scale: down ? 0.97 : (hovered ? 1.02 : 1.0)
                 Behavior on scale { NumberAnimation { duration: 100 } }
                 background: Rectangle {
-                    radius: 8
-                    color: parent.hovered ? clrCardHover : clrInput
-                    border.color: clrCardBorder; border.width: 1
+                    radius: Theme.radiusControl
+                    color: parent.hovered ? Theme.surfaceHover : Theme.surfaceControl
+                    border.color: parent.hovered ? Theme.borderFocus : Theme.borderControl
+                    border.width: 1
                 }
-                contentItem: Label {
-                    text: parent.text
-                    color: clrTxt
-                    font.pixelSize: 12
-                    font.bold: true
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
+                contentItem: RowLayout {
+                    spacing: 6
+                    anchors.centerIn: parent
+                    Icon { glyph: Icons.copy; size: 14; color: Theme.textPrimary }
+                    Label {
+                        text: root.t("console.copy_logs_btn")
+                        color: Theme.textPrimary
+                        font.pixelSize: 13
+                        font.bold: true
+                    }
                 }
                 onClicked: appBackend.copyLogs()
             }
 
             Button {
-                height: 36
-                text: "🗑️ " + root.t("console.clear_logs_btn")
+                height: Theme.heightSecondary
+                topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
                 scale: down ? 0.97 : (hovered ? 1.02 : 1.0)
                 Behavior on scale { NumberAnimation { duration: 100 } }
                 background: Rectangle {
-                    radius: 8
-                    color: parent.hovered ? "#3B1111" : clrInput
-                    border.color: clrCardBorder; border.width: 1
+                    radius: Theme.radiusControl
+                    color: parent.hovered ? Theme.statusDangerSubtle : Theme.surfaceControl
+                    border.color: parent.hovered ? Theme.statusDanger : Theme.statusDangerBorder
+                    border.width: 1
                 }
-                contentItem: Label {
-                    text: parent.text
-                    color: clrError
-                    font.pixelSize: 12
-                    font.bold: true
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
+                contentItem: RowLayout {
+                    spacing: 6
+                    anchors.centerIn: parent
+                    Icon { glyph: Icons.trash2; size: 14; color: Theme.statusDanger }
+                    Label {
+                        text: root.t("console.clear_logs_btn")
+                        color: Theme.statusDanger
+                        font.pixelSize: 13
+                        font.bold: true
+                    }
                 }
                 onClicked: appBackend.clearLogs()
             }
@@ -111,8 +120,8 @@ Item {
 
             // Level Buttons
             Rectangle {
-                height: 36; radius: 8
-                color: clrCard; border.color: clrCardBorder; border.width: 1
+                height: Theme.heightSecondary; radius: Theme.radiusControl
+                color: Theme.surfaceCard; border.color: Theme.borderCard; border.width: 1
                 Layout.preferredWidth: filterRow.implicitWidth + 8
 
                 RowLayout {
@@ -122,23 +131,23 @@ Item {
 
                     Repeater {
                         model: [
-                            { label: root.t("console.filter_all"), key: "ALL", color: clrTxt },
-                            { label: root.t("console.filter_info"), key: "INFO", color: clrAccent },
-                            { label: root.t("console.filter_success"), key: "SUCCESS", color: clrSuccess },
-                            { label: root.t("console.filter_warn"), key: "WARNING", color: clrWarn },
-                            { label: root.t("console.filter_error"), key: "ERROR", color: clrError }
+                            { label: root.t("console.filter_all"), key: "ALL", color: Theme.textPrimary },
+                            { label: root.t("console.filter_info"), key: "INFO", color: Theme.accentSolid },
+                            { label: root.t("console.filter_success"), key: "SUCCESS", color: Theme.statusSuccess },
+                            { label: root.t("console.filter_warn"), key: "WARNING", color: Theme.statusWarning },
+                            { label: root.t("console.filter_error"), key: "ERROR", color: Theme.statusDanger }
                         ]
                         delegate: Rectangle {
-                            width: 68; height: 28; radius: 6
-                            color: root.selectedLevel === modelData.key ? Qt.rgba(modelData.color.r, modelData.color.g, modelData.color.b, 0.2) : "transparent"
-                            border.color: root.selectedLevel === modelData.key ? modelData.color : "transparent"; border.width: 1
+                            width: 68; height: 28; radius: Theme.radiusBadge
+                            color: root.selectedLevel === modelData.key ? Theme.accentSubtle : "transparent"
+                            border.color: root.selectedLevel === modelData.key ? Theme.accentBorder : "transparent"; border.width: 1
 
                             Label {
                                 anchors.centerIn: parent
                                 text: modelData.label
                                 font.pixelSize: 10
                                 font.bold: root.selectedLevel === modelData.key
-                                color: root.selectedLevel === modelData.key ? modelData.color : clrTxt2
+                                color: root.selectedLevel === modelData.key ? modelData.color : Theme.textSecondary
                             }
 
                             MouseArea {
@@ -154,10 +163,10 @@ Item {
             // Search Bar
             Rectangle {
                 Layout.fillWidth: true
-                height: 36
-                radius: 8
-                color: clrInput
-                border.color: searchInput.activeFocus ? clrAccent : clrCardBorder
+                height: Theme.heightInput
+                radius: Theme.radiusControl
+                color: Theme.surfaceControl
+                border.color: searchInput.activeFocus ? Theme.borderFocus : Theme.borderControl
                 border.width: 1
 
                 RowLayout {
@@ -192,8 +201,8 @@ Item {
         Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            radius: 12
-            color: "#080C13"
+            radius: Theme.radiusCard
+            color: Theme.isDark ? "#080C13" : "#F8FAFC"
             border.color: clrCardBorder
             border.width: 1
 

@@ -23,9 +23,13 @@ Most real-time machine translation tools hook into games and translate text line
 **UnityLocalizer does things differently:**
 - 🚀 **100% Offline In-Game Performance:** Translates your game **ahead-of-time (AOT)**. Once localized, play completely offline with zero FPS drop or lag.
 - 🛡️ **Zero Crash Risk:** Uses read-only binary extraction (`UnityPy`) instead of dangerous binary asset repacking that breaks modern Unity LZ4/LZMA checksums.
-- 🔡 **Automatic Font Provisioning:** Solves the missing glyph crisis by deploying version-matched ArialUnicode SDF fallback font bundles for Unity 5.5 through 6000.
+- 🔡 **Advanced Font Management:** Solves missing glyphs across both legacy uGUI (`UnityEngine.UI.Text`) and TextMeshPro. Supports version-matched ArialUnicode SDF fallback bundles, system font overrides, and custom `.ttf`/`.otf` font file injection directly from the Toolbox. Automatically configures reliable OS TrueType fonts on IL2CPP / Unity 6 builds to avoid stripped runtime crashes.
+- 🎯 **Dynamic Choice & Prefix Matching:** Automatically generates regex rules for numbered options (`1. `, `[1] `) and CRPG skill check tags (`[Charm] `, `[Strength] `), translating dynamic dialogue choice buttons seamlessly.
+- 📖 **Bilingual Translation Mode:** Play games with dual-language display (`{target}\n({source})`), perfect for language learners and quality assurance reviewers.
+- ⚡ **Zero-Latency In-Memory Regex Caching:** Uses `CacheRegexPatternResults` and `_Substitutions.txt` glossary integration to ensure butter-smooth 60+ FPS without micro-stutters.
+- 🧩 **Automatic Source-Language Detection:** Leave the source language on *Auto-detect* and UnityLocalizer identifies the game's language before translating (Unicode script analysis, an offline `py3langid` model, then a Google vote for keyless engines) so Chinese, Japanese, Korean or Russian games work out of the box. You get a notification with the result, or a warning when it could not decide.
 - 🧩 **AST Syntax Guard:** Protects RichText tags (`<color>`, `<size>`, `<sprite>`), NGUI BBCode, and C# formatting patterns (`{0}`, `{playerName}`, `\n`, `%s`) so game scripts never crash.
-- 📦 **One-Click Standalone Patch Packages:** Export full, shareable offline patch `.zip` distributions with bilingual install and restore `.bat` scripts.
+- 📦 **One-Click Standalone Patch Packages:** Export full, shareable offline patch `.zip` distributions with bilingual install and restore scripts for both Windows (`.bat`) and Linux / Steam Deck (`.sh`).
 
 ---
 
@@ -121,9 +125,9 @@ If you are playing a heavily stripped IL2CPP game that blocks AssetBundle loadin
 <details>
 <summary><b>Is Linux / Steam Deck / macOS supported?</b></summary>
 
-- **Current Status (v0.1.0):** Native focus is on **Windows PC games** (`.exe`).
-- **Steam Deck & Linux (Proton / Wine):** Fully playable! Since Steam Deck runs Windows Unity games through Proton/Wine, any game patched with UnityLocalizer can be played on Steam Deck. Simply add `WINEDLLOVERRIDES="winhttp=n,b" %command%` to your Steam game launch options so Proton loads the BepInEx proxy.
-- **Roadmap:** Native Linux (`.x86_64` / SteamOS) and macOS support are planned for upcoming releases (v0.2.0) based on community feedback.
+- **Steam Deck & Linux (Proton / Wine):** Fully supported! Every exported patch package includes dedicated `Install_Patch.sh`, `Uninstall_Patch.sh`, `Yama_Kur.sh`, and `Yama_Kaldir.sh` shell scripts. On Steam Deck (or Linux desktop), simply run the installer script and add `WINEDLLOVERRIDES="winhttp=n,b" %command%` to your Steam game launch options.
+- **Native Linux Detection:** `EngineProfiler` automatically identifies Linux `.x86_64` / `.x86` executables and ELF architectures.
+- **Roadmap:** Native Linux GUI packaging and native macOS support are planned for upcoming releases based on community feedback.
 </details>
 
 <details>
@@ -138,11 +142,11 @@ UnityLocalizer works with any valid Unity game folder containing a game executab
 
 **UnityLocalizer**, Unity motoruyla yapılmış oyunları tek tıkla Türkçeleştirmek için tasarlanmış bağımsız, açık kaynaklı bir masaüstü otomasyonudur.
 
-- **Kutu Kutu (□) Font Hatasına Son:** Unity 5.5 ile Unity 6000 arasındaki tüm sürümler için TextMeshPro Türkçe uyumlu font paketini otomatik olarak kurar.
+- **Kutu Kutu (□) Font Hatasına Son:** Hem uGUI hem TextMeshPro için Türkçe uyumlu fontları yapılandırır; Unity 5.5–6000 uyumlu SDF paketlerini bağlar ve dilediğiniz özel `.ttf`/`.otf` fontunu tek tıkla oyuna entegre eder.
 - **Oyun İçi Sıfır Kasma & %100 Çevrimdışı:** Oyun oynanırken canlı çeviri yapıp FPS düşürmez; metinleri önceden çevirip oyuna kalıcı ve internetsiz olarak entegre eder.
-- **Tek Tıkla Yama Paketi:** Çevirdiğiniz oyunu arkadaşlarınızla paylaşabilmeniz için çift tıkla kurulan ve kaldırılabilen bağımsız Türkçe yama `.zip` paketleri oluşturur.
+- **Tek Tıkla Yama Paketi:** Çevirdiğiniz oyunu arkadaşlarınızla paylaşabilmeniz için çift tıkla kurulan ve kaldırılabilen bağımsız Türkçe yama `.zip` paketleri (Windows için `.bat`, Linux ve Steam Deck için `.sh` dosyalarıyla) oluşturur.
 - **Gelişmiş Yapay Zekâ ve Motor Desteği:** Google, Bing, DeepL, Google Gemini, OpenAI, DeepSeek veya kendi bilgisayarınızda çalışan yerel yapay zekâ (Ollama / LM Studio) ile çeviri yapabilirsiniz.
-- **Platform & Steam Deck Durumu:** v0.1.0 sürümü Windows oyunlarını hedefler. Steam Deck ve Linux kullanıcıları, Proton/Wine altında çalışan oyunlarda Steam başlatma seçeneğine `WINEDLLOVERRIDES="winhttp=n,b" %command%` ekleyerek yamaları hemen kullanabilir. Native Linux/SteamOS desteği ise yol haritasındadır (v0.2.0).
+- **Steam Deck & Linux Desteği:** Yamalar Steam Deck ve Linux (Proton) üzerinde tam uyumludur; yama içindeki `Install_Patch.sh` scripti ve `WINEDLLOVERRIDES="winhttp=n,b" %command%` başlatma parametresiyle doğrudan oynanabilir.
 
 ---
 
