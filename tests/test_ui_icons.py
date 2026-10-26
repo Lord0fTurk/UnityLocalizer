@@ -9,7 +9,6 @@ from pathlib import Path
 from PyQt6.QtCore import QUrl
 
 from src.backend.app_backend import AppBackend
-from src.utils.paths import resource_path
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 QML_ROOT = os.path.join(ROOT, "src", "gui", "qml")

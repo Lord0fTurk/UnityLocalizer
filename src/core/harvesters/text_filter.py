@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import re
 
+from src.core.cjk import is_single_cjk
 from src.core.syntax_guard import UNITY_PROTECT_RE
 
 TECHNICAL_PREFIXES: tuple[str, ...] = (
@@ -67,7 +68,7 @@ def _visible_part(text: str) -> str | None:
 def is_code_literal_text(text: str, max_length: int = 1500) -> bool:
     """True when a C# string literal is likely shown to the player."""
     stripped = text.strip()
-    if len(stripped) < 2 or len(stripped) > max_length:
+    if (len(stripped) < 2 and not is_single_cjk(stripped)) or len(stripped) > max_length:
         return False
     plain = _visible_part(stripped)
     if not plain or plain.startswith(("<", "m_", "_")) or looks_technical(plain):

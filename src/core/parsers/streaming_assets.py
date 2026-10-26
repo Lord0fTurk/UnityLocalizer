@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -28,12 +29,13 @@ from src.core.parsers.text_formats import (
     translate_xml_text,
 )
 from src.core.parsers.naninovel_parser import NaninovelParser, line_strings
+from src.core.parsers.subtitle_resx import resx_strings, srt_strings, translate_resx, translate_srt
 from src.core.parsers.yarn_lines import looks_like_yarn, translate_yarn_text, yarn_strings
 from src.utils.file_ops import pristine_source, safe_write
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_SUFFIXES = frozenset({".json", ".csv", ".tsv", ".txt", ".yarn", ".xml", ".nani"})
+SUPPORTED_SUFFIXES = frozenset({".json", ".csv", ".tsv", ".txt", ".yarn", ".xml", ".nani", ".srt", ".resx"})
 
 
 def _detect_encoding(path: Path) -> str:
@@ -116,7 +118,7 @@ class StreamingAssetsParser(BaseParser):
         """Dispatch text to the extractor matching the file extension."""
         if suffix == ".json":
             try:
-                return strings_from_json_document(json.loads(text))
+                return strings_from_json_document(json.loads(text, strict=False), self.source_lang)
             except json.JSONDecodeError as exc:
                 logger.error("Failed to parse JSON %s: %s", path, exc)
                 return []
@@ -128,7 +130,11 @@ class StreamingAssetsParser(BaseParser):
             return yarn_strings(text)
         if suffix == ".nani":
             return [s for line in text.splitlines() for s in line_strings(line)]
-        return sniff_and_extract(text)
+        if suffix == ".srt":
+            return srt_strings(text)
+        if suffix == ".resx":
+            return resx_strings(text)
+        return sniff_and_extract(text, self.source_lang)
 
     def apply_translations(
         self,
@@ -158,14 +164,32 @@ class StreamingAssetsParser(BaseParser):
             return self._apply_txt(source, out_path, translations, is_yarn=suffix == ".yarn")
         if suffix == ".nani":
             return NaninovelParser().apply_translations(path, translations, out_path)
+        if suffix in (".srt", ".resx"):
+            return self._apply_converter(
+                source, out_path, translations, translate_srt if suffix == ".srt" else translate_resx
+            )
         return False
+
+    @staticmethod
+    def _apply_converter(
+        in_path: Path, out_path: Path, translations: dict[str, str], convert: Callable[[str, dict[str, str]], str]
+    ) -> bool:
+        """Run a text converter over the pristine file and write the result atomically."""
+        try:
+            encoding = _detect_encoding(in_path)
+            with open(in_path, "r", encoding="utf-8-sig", errors="ignore", newline="") as f:
+                text = f.read()
+            return safe_write(out_path, convert(text, translations), encoding=encoding)
+        except Exception as exc:
+            logger.error("Failed to apply translations to %s: %s", in_path, exc)
+            return False
 
     def _apply_json(self, in_path: Path, out_path: Path, translations: dict[str, str]) -> bool:
         """Replace translated strings in JSON structure and write atomically."""
         try:
             encoding = _detect_encoding(in_path)
             with open(in_path, "r", encoding="utf-8-sig", errors="ignore") as f:
-                data = json.load(f)
+                data = json.load(f, strict=False)
 
             updated = translate_ink(data, translations) if is_ink_document(data) else _replace_json_iterative(data, translations)
             indent = None if is_ink_document(data) else 2

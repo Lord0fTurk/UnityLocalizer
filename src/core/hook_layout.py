@@ -11,8 +11,12 @@ from __future__ import annotations
 from pathlib import Path
 
 # Doorstop proxies that make the game load BepInEx (one of the DLLs is enough).
-PROXY_DLLS: tuple[str, ...] = ("winhttp.dll", "version.dll", "doorstop_config.ini")
-PROXY_LIBRARIES: tuple[str, ...] = ("winhttp.dll", "version.dll")
+# Linux builds load Doorstop through ``libdoorstop.so`` started by ``run_bepinex.sh``.
+LINUX_LAUNCH_SCRIPT = "run_bepinex.sh"
+PROXY_DLLS: tuple[str, ...] = (
+    "winhttp.dll", "version.dll", "doorstop_config.ini", "libdoorstop.so", LINUX_LAUNCH_SCRIPT,
+)
+PROXY_LIBRARIES: tuple[str, ...] = ("winhttp.dll", "version.dll", "libdoorstop.so")
 BEPINEX_CORE_DIR = Path("BepInEx") / "core"
 # XUnity.AutoTranslator ships these plugin folders (verified against the 5.5.0 and 5.6.2 packages).
 XUNITY_PLUGIN_DIRS: tuple[Path, ...] = (
@@ -24,6 +28,10 @@ AUTOTRANSLATOR_CONFIG = Path("BepInEx") / "config" / "AutoTranslatorConfig.ini"
 # downloads from unity.bepinex.dev on the first launch when they are missing.
 IL2CPP_RUNTIME_MARKER = Path("BepInEx") / "core" / "BepInEx.Unity.IL2CPP.dll"
 UNITY_BASE_LIBS_DIR = Path("BepInEx") / "unity-libs"
+# Written by UnityLocalizer after a successful install: which package flavour was deployed.
+RUNTIME_MARKER = Path("BepInEx") / "UnityLocalizer.runtime.json"
+# BepInEx writes this on every game start; it is the proof that the hook really loaded.
+BEPINEX_LOG = Path("BepInEx") / "LogOutput.log"
 
 
 # XUnity loads every *.txt under Translation\{Lang}\Text. Its own OutputFile
@@ -66,3 +74,13 @@ def runtime_hook_ready(game_dir: Path | str) -> bool:
     root = Path(game_dir)
     has_proxy = any((root / name).is_file() for name in PROXY_LIBRARIES)
     return has_proxy and (root / BEPINEX_CORE_DIR).is_dir() and (root / XUNITY_PLUGIN_DIRS[0]).is_dir()
+
+
+def runtime_flavor_matches(game_dir: Path | str, is_il2cpp: bool) -> bool:
+    """True when the installed BepInEx is the right generation: 6 for IL2CPP, 5 for Mono.
+
+    Only BepInEx 6 IL2CPP ships ``BepInEx.Unity.IL2CPP.dll``; a Mono game with it, or an
+    IL2CPP game without it, has a hook that can never work.
+    """
+    has_il2cpp_core = (Path(game_dir) / IL2CPP_RUNTIME_MARKER).is_file()
+    return has_il2cpp_core == is_il2cpp

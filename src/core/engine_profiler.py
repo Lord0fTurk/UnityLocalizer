@@ -101,6 +101,8 @@ class UnityGameProfile:
     data_dir: Path | None = None
     unity_version: str = "Unknown"
     is_64bit: bool = True
+    # False while ``is_64bit`` is only the default because no binary header could be read.
+    architecture_certain: bool = False
     is_il2cpp: bool = False
     has_text_mesh_pro: bool = False
     has_streaming_assets: bool = False
@@ -108,6 +110,8 @@ class UnityGameProfile:
     has_bepinex: bool = False
     # Windows player build (BepInEx/XUnity packages and patch scripts are Windows-only).
     is_windows_build: bool = True
+    # Native Linux player (ELF executable or UnityPlayer.so); BepInEx has Linux packages for it.
+    is_linux_build: bool = False
     detected_frameworks: list[str] = field(default_factory=list)
     metadata_version: int | None = None
     metadata_encrypted: bool = False
@@ -296,6 +300,10 @@ class EngineProfiler:
             is_windows_exe or any((root / name).is_file() for name in ("UnityPlayer.dll", "GameAssembly.dll"))
         )
 
+        profile.is_linux_build = not profile.is_windows_build and any(
+            (root / name).is_file() for name in ("UnityPlayer.so", "GameAssembly.so")
+        )
+
         # 2. Check ELF vs PE header for bitness
         if profile.game_exe and profile.game_exe.is_file():
             try:
@@ -305,6 +313,8 @@ class EngineProfiler:
                         elf_class = bf.read(1)
                         if elf_class:
                             profile.is_64bit = (elf_class[0] == 2)
+                            profile.architecture_certain = True
+                            profile.is_linux_build = True
                             return
             except OSError:
                 pass
@@ -321,6 +331,7 @@ class EngineProfiler:
                 pe = pefile.PE(str(binary), fast_load=True)
                 try:
                     profile.is_64bit = (pe.FILE_HEADER.Machine == 0x8664)
+                    profile.architecture_certain = True
                     break
                 finally:
                     pe.close()
@@ -400,7 +411,7 @@ class EngineProfiler:
         ignored_patterns = ("lovense", "analytics", "steam", "telemetry", "hardware")
         return any(
             f.is_file()
-            and f.suffix.lower() in (".json", ".csv", ".tsv", ".txt", ".xml", ".yarn", ".nani")
+            and f.suffix.lower() in (".json", ".csv", ".tsv", ".txt", ".xml", ".yarn", ".nani", ".srt", ".resx")
             and not any(ig in f.name.lower() for ig in ignored_patterns)
             for f in sa.glob("**/*")
         )

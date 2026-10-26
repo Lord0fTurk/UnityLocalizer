@@ -44,7 +44,7 @@ ScrollView {
                     anchors.fill: parent
                     anchors.margins: 8
                     source: appBackend ? appBackend.get_asset_url("icon.png") : ""
-                    sourceSize: Qt.size(64, 64)
+                    sourceSize: Qt.size(128, 128)
                     fillMode: Image.PreserveAspectFit
                     smooth: true
                     mipmap: true
@@ -110,8 +110,12 @@ ScrollView {
                 anchors.margins: 20
                 spacing: 16
 
-                Label {
-                    text: "📖 " + root.t("about.card_title")
+                IconLabel {
+                    glyph: Icons.bookOpen
+                    iconColor: Theme.accentSolid
+                    spacing: 8
+                    alignment: Qt.AlignLeft
+                    text: root.t("about.card_title")
                     font.pixelSize: 15
                     font.bold: true
                     color: Theme.textPrimary
@@ -128,8 +132,12 @@ ScrollView {
 
                 Rectangle { Layout.fillWidth: true; height: 1; color: Theme.borderCard }
 
-                Label {
-                    text: "🛠️ " + root.t("about.tech_title")
+                IconLabel {
+                    glyph: Icons.wrench
+                    iconColor: Theme.accentSolid
+                    spacing: 8
+                    alignment: Qt.AlignLeft
+                    text: root.t("about.tech_title")
                     font.pixelSize: 15
                     font.bold: true
                     color: Theme.textPrimary
@@ -169,8 +177,11 @@ ScrollView {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    Label {
-                        text: "⚖️ " + root.t("about.license_label")
+                    IconLabel {
+                        glyph: Icons.fileJson
+                        spacing: 6
+                        alignment: Qt.AlignLeft
+                        text: root.t("about.license_label")
                         color: Theme.textMuted
                         font.pixelSize: 12
                     }

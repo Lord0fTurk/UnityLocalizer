@@ -51,6 +51,8 @@ SETTING_SPECS: dict[str, SettingSpec] = {
     "proxy_list": _TEXT,
     "use_cache": _BOOL,
     "tmp_system_font": _TEXT,
+    "completed_runs": _int(0, 1_000_000),
+    "hide_support_prompt": _BOOL,
     "custom_font_path": _TEXT,
     "override_font_ugui": _TEXT,
     "font_preset": SettingSpec(str, choices=("default_arial", "custom_ttf", "system_font")),

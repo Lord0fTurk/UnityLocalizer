@@ -39,9 +39,9 @@ You don't need any modding experience to localize a Unity game:
 
 ```mermaid
 flowchart LR
-    A["Select Game (.exe)"] --> B["Install Runtime Hook"]
-    B --> C["Choose Language & Engine"]
-    C --> D["Start Localization"]
+    A["Select Game (.exe)"] --> B["Choose Language & Engine"]
+    B --> C["Start Localization"]
+    C --> D["Runtime auto-installed + translated"]
     D --> E["Play 100% Offline!"]
 ```
 
@@ -51,12 +51,13 @@ flowchart LR
    - Launch **UnityLocalizer**.
    - Drag & drop or browse to your game's root folder or `.exe`.
    - The profiler will instantly detect the Unity engine version, architecture (Mono vs. IL2CPP, 32-bit vs. 64-bit), and narrative frameworks.
-2. **Install Runtime & Font (One-Click):**
-   - Click the **"Install Hooks"** button in the Toolbox or Dashboard banner.
-   - UnityLocalizer automatically provisions the correct BepInEx runtime and matching TextMeshPro fallback font bundle.
+2. **Choose Language & Engine:**
+   - Pick your **Target Language** (the source language is detected automatically) and a **Translation Engine**.
+   - There is nothing to install by hand: the matching BepInEx + XUnity runtime and font are downloaded (SHA256-verified) and set up automatically when you start.
 3. **Translate & Play:**
    - Select your desired **Target Language** (e.g., Turkish, Spanish, German, French, etc.) and your preferred **Translation Engine**.
-   - Click **"Start Localization"**.
+   - Click **"Start Localization"**. Warnings (unreadable files, missing runtime log, glyph coverage...) appear on the Dashboard, not only in the log.
+   - Translation happens **before** you play: the finished dictionary is loaded offline by the game (no network, no live translation).
    - Once completed, click **Launch Game** and enjoy!
 
 ---
@@ -106,13 +107,15 @@ Want to share your localized game with friends or the community?
 <details>
 <summary><b>Missing letters or box squares (□) appearing in-game?</b></summary>
 
-This happens when the game's TextMeshPro font lacks glyphs for your language. UnityLocalizer solves this automatically by deploying ArialUnicode SDF. 
+This happens when the game's TextMeshPro font lacks glyphs for your language. UnityLocalizer handles it automatically: Mono games get a fallback font bundle, IL2CPP games (which cannot load AssetBundles) get an installed system font such as Arial added as a **fallback** for the missing characters only.
 
-If you are playing a heavily stripped IL2CPP game that blocks AssetBundle loading:
+If boxes remain:
 1. Open **Settings** in UnityLocalizer.
-2. Under **Runtime & Font**, find **TextMeshPro System Font Override**.
-3. Type the name of a standard Windows font (e.g. `Arial` or `Segoe UI`).
-4. Re-run or restart the game.
+2. Under **Runtime & Font**, find **System font for TextMeshPro (optional)**.
+3. Type the name of another installed font (e.g. `Segoe UI`, `Tahoma`).
+4. Re-run the translation or use the Toolbox font button, then restart the game.
+
+The tool never uses XUnity's `OverrideFontTextMeshPro` on IL2CPP: it crashed a Unity 6 game.
 </details>
 
 <details>
@@ -125,9 +128,15 @@ If you are playing a heavily stripped IL2CPP game that blocks AssetBundle loadin
 <details>
 <summary><b>Is Linux / Steam Deck / macOS supported?</b></summary>
 
-- **Steam Deck & Linux (Proton / Wine):** Fully supported! Every exported patch package includes dedicated `Install_Patch.sh`, `Uninstall_Patch.sh`, `Yama_Kur.sh`, and `Yama_Kaldir.sh` shell scripts. On Steam Deck (or Linux desktop), simply run the installer script and add `WINEDLLOVERRIDES="winhttp=n,b" %command%` to your Steam game launch options.
-- **Native Linux Detection:** `EngineProfiler` automatically identifies Linux `.x86_64` / `.x86` executables and ELF architectures.
-- **Roadmap:** Native Linux GUI packaging and native macOS support are planned for upcoming releases based on community feedback.
+- **Windows games on Steam Deck / Linux (Proton / Wine):** Supported. Every exported patch package includes `Install_Patch.sh`, `Uninstall_Patch.sh`, `Yama_Kur.sh` and `Yama_Kaldir.sh`. Add `WINEDLLOVERRIDES="winhttp=n,b" %command%` to the Steam launch options; UnityLocalizer shows this hint on the Dashboard when it runs on Linux.
+- **Native Linux Unity builds (experimental):** UnityLocalizer detects `.x86_64` / ELF builds and installs the Linux BepInEx package (`run_bepinex.sh`, launch option `./run_bepinex.sh %command%`). This path has been verified only up to the package download and checksums, not on a real Linux machine yet; please report problems.
+- **macOS:** not supported yet.
+</details>
+
+<details>
+<summary><b>The game closes by itself and the <code>BepInEx</code> folder disappears?</b></summary>
+
+Some games ship their own anti-mod code (for example a routine named `CheckAndRemoveBepInEx`) that deletes BepInEx shortly after start. UnityLocalizer reads the game's class and method names before translating and shows a Dashboard warning when it finds such a routine. The runtime hook cannot work with these games, and UnityLocalizer does not try to work around the protection; only translations written into the game's own files (loose `StreamingAssets` patching) can survive.
 </details>
 
 <details>

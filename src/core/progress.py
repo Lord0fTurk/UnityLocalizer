@@ -102,9 +102,16 @@ ProgressCallback = Callable[[ProgressEvent], None]
 NOTIFICATION_LEVELS: dict[str, str] = {
     "pipeline.source_detected_offline": "info",
     "pipeline.source_detected_online": "info",
+    "pipeline.source_detected_tables": "info",
+    "pipeline.foreign_text_removed": "info",
+    "pipeline.source_script_mismatch": "warning",
     "pipeline.source_detect_failed": "warning",
     "font.version_unknown": "warning",
     "font.coverage_missing": "warning",
+    "pipeline.harvest_warn_unreadable_files": "warning",
+    "pipeline.harvest_warn_raw_scan": "warning",
+    "pipeline.harvest_warn_code_encrypted": "warning",
+    "pipeline.anti_mod_detected": "warning",
 }
 
 

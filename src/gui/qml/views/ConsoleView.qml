@@ -41,7 +41,7 @@ Item {
                 width: 38; height: 38; radius: 10
                 color: Theme.accentAlpha(0.12)
                 border.color: Theme.accentAlpha(0.3); border.width: 1
-                Label { anchors.centerIn: parent; text: "📜"; font.pixelSize: 18 }
+                Icon { anchors.centerIn: parent; glyph: Icons.terminal; size: 20; color: Theme.accentSolid }
             }
 
             ColumnLayout {
@@ -174,7 +174,7 @@ Item {
                     anchors.leftMargin: 12; anchors.rightMargin: 12
                     spacing: 8
 
-                    Label { text: "🔍"; font.pixelSize: 12; color: clrTxtDim }
+                    Icon { glyph: Icons.search; size: 14; color: clrTxtDim }
 
                     TextInput {
                         id: searchInput

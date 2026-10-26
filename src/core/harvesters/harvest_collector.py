@@ -10,6 +10,7 @@ from pathlib import Path
 from src.core.engine_profiler import UnityGameProfile
 from src.core.harvesters.asset_harvester import AssetHarvester
 from src.core.harvesters.assembly_harvester import AssemblyHarvester
+from src.core.harvesters.harvest_stats import HarvestStats
 from src.core.harvesters.metadata_harvester import MetadataHarvester
 from src.core.harvesters.typetree_provider import create_typetree_generator
 from src.core.parsers.streaming_assets import SUPPORTED_SUFFIXES, StreamingAssetsParser
@@ -25,6 +26,7 @@ class HarvestResult:
     strings: list[str] = field(default_factory=list)
     streaming_files: list[Path] = field(default_factory=list)
     per_channel: dict[str, int] = field(default_factory=dict)
+    stats: HarvestStats = field(default_factory=HarvestStats)
 
 
 class HarvestCollector:
@@ -39,9 +41,10 @@ class HarvestCollector:
         pool: dict[str, None] = {}
         result = HarvestResult()
         channels = (
-            ("assets", lambda p: self._harvest_assets(p, cancel)),
+            ("assets", lambda p: self._harvest_assets(p, cancel, result.stats)),
             ("code", self._harvest_code),
             ("streaming", lambda p: self._harvest_streaming(p, result)),
+            ("localization", self._harvest_localization_dirs),
         )
         for index, (name, harvester) in enumerate(channels, start=1):
             checkpoint(cancel)
@@ -50,17 +53,20 @@ class HarvestCollector:
             result.per_channel[name] = len(strings)
             pool.update(dict.fromkeys(strings))
         result.strings = list(pool)
+        result.stats.encrypted_code = profile.is_il2cpp and profile.metadata_encrypted
         emit(self.progress, "pipeline.harvest_done", len(channels), len(channels), count=len(pool))
         logger.info("Harvest per channel: %s", result.per_channel)
         return result
 
-    def _harvest_assets(self, profile: UnityGameProfile, cancel: CancelToken | None) -> list[str]:
+    def _harvest_assets(
+        self, profile: UnityGameProfile, cancel: CancelToken | None, stats: HarvestStats | None = None
+    ) -> list[str]:
         """Scenes, shared assets, data.unity3d and AssetBundles (per-file progress and cancel)."""
         if not profile.data_dir:
             return []
         generator = create_typetree_generator(profile)
         return AssetHarvester.harvest_data_dir(
-            profile.data_dir, self.source_lang, generator, progress=self.progress, cancel=cancel
+            profile.data_dir, self.source_lang, generator, progress=self.progress, cancel=cancel, stats=stats
         )
 
     @staticmethod
@@ -98,6 +104,40 @@ class HarvestCollector:
         if "aa" in rel_parts or "addressables" in rel_parts:
             return True
         return lower_name in cls._IGNORED_ADDRESSABLES_FILES
+
+    _LOCALIZATION_DIR_HINTS = ("local", "lang", "dialog", "i18n", "translation", "subtitle", "story", "conversation")
+    _EXCLUDED_DIRS = frozenset({
+        "streamingassets", "managed", "mono", "monobleedingedge", "il2cpp_data", "bepinex", "plugins", "patches",
+    })
+    _IGNORED_DOC_NAMES = ("readme", "license", "licence", "changelog", "thirdparty", "third-party", "notice")
+
+    @classmethod
+    def _is_localization_dir(cls, name: str) -> bool:
+        lowered = name.lower()
+        if lowered in cls._EXCLUDED_DIRS or "texture" in lowered:
+            return False
+        return "text" in lowered or any(hint in lowered for hint in cls._LOCALIZATION_DIR_HINTS)
+
+    def _harvest_localization_dirs(self, profile: UnityGameProfile) -> list[str]:
+        """Loose text files in localization-looking folders next to the game or in ``<Game>_Data``.
+
+        These are only read: translations reach them through the runtime dictionary, never
+        by rewriting the files (unlike StreamingAssets files, which may be patched in place).
+        """
+        parser = StreamingAssetsParser(source_lang=self.source_lang)
+        roots = [profile.game_path] + ([profile.data_dir] if profile.data_dir else [])
+        strings: list[str] = []
+        for root in roots:
+            for folder in sorted(p for p in root.iterdir() if p.is_dir() and self._is_localization_dir(p.name)):
+                for path in sorted(folder.rglob("*")):
+                    if (
+                        path.is_file()
+                        and path.suffix.lower() in SUPPORTED_SUFFIXES
+                        and not path.name.lower().startswith(self._IGNORED_DOC_NAMES)
+                        and not self._is_ignored_streaming_file(path, folder)
+                    ):
+                        strings.extend(parser.extract_strings(path))
+        return strings
 
     def _harvest_streaming(self, profile: UnityGameProfile, result: HarvestResult) -> list[str]:
         """Loose JSON/CSV/TSV/XML/TXT/Yarn files under StreamingAssets."""

@@ -58,14 +58,20 @@ Item {
             anchors.margins: 14
             spacing: 12
 
-            Text {
-                text: {
-                    if (toastType === "success") return "✅";
-                    if (toastType === "error") return "❌";
-                    if (toastType === "warning") return "⚠️";
-                    return "ℹ️";
+            Icon {
+                glyph: {
+                    if (toastType === "success") return Icons.circleCheck;
+                    if (toastType === "error") return Icons.circleX;
+                    if (toastType === "warning") return Icons.triangleAlert;
+                    return Icons.info;
                 }
-                font.pixelSize: 18
+                color: {
+                    if (toastType === "success") return Theme.statusSuccess;
+                    if (toastType === "error") return Theme.statusDanger;
+                    if (toastType === "warning") return Theme.statusWarning;
+                    return Theme.accentSolid;
+                }
+                size: 20
             }
 
             Text {
@@ -85,11 +91,11 @@ Item {
                     root.opacity = 0.0;
                     toastCard.y = 20;
                 }
-                Text {
+                Icon {
                     anchors.centerIn: parent
-                    text: "✕"
+                    glyph: Icons.x
                     color: Theme.textMuted
-                    font.pixelSize: 12
+                    size: 14
                 }
             }
         }

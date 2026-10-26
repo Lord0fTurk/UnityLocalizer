@@ -45,7 +45,7 @@ _LAYOUT_SAFE_DEFAULTS: IniValues = {
         "CopyToClipboard": "False", "EnableTextureTranslation": "False",
         "EnableTextureDumping": "False", "EnableTextureReloading": "False",
         "EnableTranslationScoping": "False", "IgnoreVirtualTextSetterCallingRules": "True",
-        "ForceMonoModHooks": "True",
+        "ForceMonoModHooks": "False",
     },
 }
 
@@ -87,14 +87,12 @@ class FontBootstrap:
         """Wire a detected TMP font bundle into an offline-only AutoTranslatorConfig.ini.
 
         ``make_backup=False`` is used for exported patch folders, which must not
-        ship a ``.bak`` copy of the config. ``tmp_override_font`` (when not None)
-        sets XUnity's ``OverrideFontTextMeshPro``: a system font name such as
-        ``Arial`` is loaded as a TMP font by XUnity 5.6.2+ (TextMeshPro 3.2+), the
-        workaround for IL2CPP builds whose stripped AssetBundle API cannot load the
-        fallback bundle; an empty string switches the override off.
+        ship a ``.bak`` copy of the config. ``tmp_override_font`` is a system font name
+        such as ``Arial``. For IL2CPP builds (whose stripped AssetBundle API cannot load the
+        fallback bundle) it becomes XUnity's ``FallbackFontTextMeshPro`` (extra glyphs only,
+        chosen automatically per language when None) and ``OverrideFontTextMeshPro`` stays
+        empty; otherwise it sets ``OverrideFontTextMeshPro`` (an empty string switches it off).
         ``override_font`` sets XUnity's ``OverrideFont`` (uGUI / UnityEngine.UI.Text).
-        When ``is_il2cpp`` is True, stripped AssetBundle loading is avoided and
-        a reliable OS system font (e.g. Arial, SimHei) is selected automatically.
         """
         game_path = Path(game_dir)
         if not game_path.is_dir():
@@ -104,10 +102,14 @@ class FontBootstrap:
         behaviour: dict[str, str] = {}
         base_target = target_lang.split("-")[0].lower()
         if is_il2cpp:
-            # AssetBundle loading is stripped in IL2CPP runtime; rely on OS system font via OverrideFontTextMeshPro.
-            behaviour["FallbackFontTextMeshPro"] = ""
+            # AssetBundle loading is stripped in IL2CPP runtime, so the fallback is an OS font. It is added
+            # as a *fallback* (extra glyphs only): XUnity's OverrideFontTextMeshPro swaps the material of
+            # every text and crashed a Unity 6000 game (access violation in TMP_Text.set_fontSharedMaterial).
             if tmp_override_font is None:
                 tmp_override_font = DEFAULT_IL2CPP_SYSTEM_FONTS.get(base_target, FALLBACK_IL2CPP_SYSTEM_FONT)
+            behaviour["FallbackFontTextMeshPro"] = tmp_override_font.strip()
+            behaviour["OverrideFontTextMeshPro"] = ""
+            tmp_override_font = None
         else:
             bundle = cls._resolve_preferred_bundle(game_path, preferred_bundle) or cls.find_tmp_font_bundle(game_path)
             if bundle:
@@ -181,14 +183,16 @@ class FontBootstrap:
             "Behaviour": {
                 "EnableTranslationScoping": "False",
                 "IgnoreVirtualTextSetterCallingRules": "True",
-                "ForceMonoModHooks": "True",
+                # XUnity's TMP/UGUI hooks exist as Harmony hooks only under IL2CPP; forcing MonoMod
+                # there makes every hook fail ("Harmony is not supported in this runtime").
+                "ForceMonoModHooks": "False",
             },
         }
         if is_il2cpp:
             # IMGUI hooks are not implemented in IL2CPP XUnity and trigger NotImplementedException.
             forced["TextFrameworks"] = {"EnableIMGUI": "False"}
         if behaviour:
-            forced["Behaviour"] = dict(behaviour)
+            forced["Behaviour"].update(behaviour)
         try:
             # Bytes, not read_text(): universal newlines would silently turn the file's CRLF into LF.
             existing = config_path.read_bytes().decode("utf-8-sig") if config_path.is_file() else ""

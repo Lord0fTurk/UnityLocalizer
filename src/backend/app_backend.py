@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import sys
 import threading
 import time
 import urllib.parse
@@ -21,7 +23,8 @@ from src.core.harvesters.metadata_harvester import MetadataHarvester
 from src.core.harvesters.typetree_provider import create_typetree_generator
 from src.core.hook_manager.font_bootstrap import FontBootstrap
 from src.core.hook_manager.font_provisioner import FontProvisioner
-from src.core.hook_manager.installer import HookInstaller
+from src.core.hook_manager.installer import HookInstaller, RuntimeSetupError
+from src.core.hook_manager.runtime_state import LOG_ERROR, LOG_OK, inspect_runtime_log
 from src.core.parsers.loc_table import resolve_source_language
 from src.core.parsers.streaming_assets import SUPPORTED_SUFFIXES, StreamingAssetsParser
 from src.core.pipeline.orchestrator import UnityTranslationPipeline
@@ -33,6 +36,7 @@ from src.core.progress import (
     OperationCancelled,
     ProgressEvent,
     ProgressLogFilter,
+    checkpoint,
 )
 from src.core.languages import Language, engine_supports, get_language, languages_for_engine
 from src.core.rtl_shaper import is_rtl_language
@@ -41,8 +45,9 @@ from src.core.translators.manager import TranslationManager
 from src.backend.locale_manager import LocaleManager
 from src.backend.settings_schema import SETTING_SPECS, coerce_setting
 from src.utils.config import DEFAULT_CONFIG, ConfigManager
+from src.utils.file_ops import safe_write
 from src.utils.logger import mask_secrets
-from src.utils.paths import get_patches_dir, resource_path
+from src.utils.paths import get_data_dir, get_patches_dir, resource_path
 from src.version import VERSION
 
 logger = logging.getLogger(__name__)
@@ -86,6 +91,11 @@ def _harvest_streaming_dir(sa_dir: Path) -> list[str]:
     return strings
 
 
+# Levels that stay on the dashboard instead of vanishing with a toast.
+NOTICE_LEVELS: frozenset[str] = frozenset({"warning", "error"})
+# The completion dialog asks for support only after this many finished runs (never on the first ones).
+SUPPORT_PROMPT_MIN_RUNS = 3
+
 ROUTE_I18N_MAP: dict[str, str] = {
     "Route 1: Native Static Patcher": "routes.route1_native",
     "Route 3: Runtime Hook (BepInEx)": "routes.route3_hook",
@@ -100,6 +110,7 @@ class AppBackend(QObject):
     progressChanged = pyqtSignal()
     statusChanged = pyqtSignal()
     logsChanged = pyqtSignal()
+    noticesChanged = pyqtSignal()
     statsChanged = pyqtSignal()
     settingsChanged = pyqtSignal()
     toastRequested = pyqtSignal(str, str)
@@ -127,6 +138,8 @@ class AppBackend(QObject):
         self._progress_val: float = 0.0
         self._progress_msg: str = ""
         self._logs: list[dict[str, str]] = []
+        # Persistent dashboard notices: {level, key, params}; localized when read.
+        self._notices: list[dict[str, Any]] = []
         self._harvest_count: int = 0
         self._progress_log_filter = ProgressLogFilter()
 
@@ -148,10 +161,43 @@ class AppBackend(QObject):
         self.statusChanged.emit()
 
     def _notify(self, level: str, key: str, **params: Any) -> None:
-        """Log, show in the status bar and toast one localized message."""
+        """Log, show in the status bar and toast one localized message.
+
+        Warnings and errors also stay on the dashboard until dismissed: players rarely read logs.
+        """
         self.add_log(level, key, **params)
+        if level in NOTICE_LEVELS:
+            self._post_notice(level, key, **params)
         self._set_status(key, **params)
         self.toastRequested.emit(self._translate_text(key, **params), level)
+
+    def _post_notice(self, level: str, key: str, **params: Any) -> None:
+        """Show a message on the dashboard card; the same key replaces its older entry."""
+        with self._state_lock:
+            self._notices = [n for n in self._notices if n["key"] != key]
+            self._notices.append({"level": level, "key": key, "params": params})
+        self.noticesChanged.emit()
+
+    def _warn(self, level: str, key: str, **params: Any) -> None:
+        """Log a message and keep it visible on the dashboard."""
+        self.add_log(level, key, **params)
+        self._post_notice(level, key, **params)
+
+    @pyqtProperty("QVariantList", notify=noticesChanged)
+    def notices(self) -> list[dict[str, str]]:
+        """Dashboard notices as ``{level, text}`` rows, localized at read time."""
+        with self._state_lock:
+            current = list(self._notices)
+        return [
+            {"level": n["level"], "text": self._translate_text(n["key"], **n["params"])} for n in current
+        ]
+
+    @pyqtSlot()
+    def dismissNotices(self) -> None:
+        """Hide every dashboard notice (also called when a new run starts)."""
+        with self._state_lock:
+            self._notices = []
+        self.noticesChanged.emit()
 
     @pyqtSlot(str)
     def onUiLanguageChanged(self, lang_code: str) -> None:
@@ -161,6 +207,7 @@ class AppBackend(QObject):
         self.profileChanged.emit()
         self.statusChanged.emit()
         self.settingsChanged.emit()
+        self.noticesChanged.emit()
 
     @pyqtSlot()
     def restoreLastSession(self) -> None:
@@ -197,6 +244,8 @@ class AppBackend(QObject):
         if level:
             self.add_log(level, message)
             self.toastRequested.emit(message, level)
+            if level in NOTICE_LEVELS:
+                self._post_notice(level, event.key, **event.message_params())
             return
         if not should_log:
             return
@@ -424,13 +473,18 @@ class AppBackend(QObject):
         if not self._can_start_job(toast=True):
             return
         token = self._cancel_token = CancelToken()
+        self.dismissNotices()
         self._set_status("dashboard.status_translating")
         self.add_log("info", "dashboard.status_translating")
         self._run_in_background(lambda: self._run_localization(token))
 
-    def _tmp_override_font(self) -> str:
-        """System font for XUnity's OverrideFontTextMeshPro ('' = off), from Settings."""
-        return str(self.config.get("tmp_system_font", "") or "").strip()
+    def _tmp_override_font(self) -> str | None:
+        """System font for XUnity's OverrideFontTextMeshPro from Settings; None = choose automatically.
+
+        An empty setting must stay None: ``""`` would switch the override off and skip the
+        automatic system-font choice that covers glyphs the fallback bundle lacks.
+        """
+        return str(self.config.get("tmp_system_font", "") or "").strip() or None
 
     def _override_font_ugui(self) -> str:
         """Font for XUnity's OverrideFont (uGUI), from Settings."""
@@ -461,13 +515,32 @@ class AppBackend(QObject):
         )
         if self.pipeline.last_session is not None:
             self.reviewReady.emit(self.pipeline.last_session)
+        self._save_harvest_report()
         return total
+
+    def _save_harvest_report(self) -> None:
+        """Write what the last scan saw and skipped to the data folder for diagnosis."""
+        stats = self.pipeline.last_harvest_stats
+        if stats is None:
+            return
+        path = get_data_dir() / "harvest_report.json"
+        try:
+            safe_write(path, json.dumps(stats.to_report(), ensure_ascii=False, indent=2), make_backup=False)
+        except OSError as exc:
+            logger.warning("Could not save the harvest report: %s", exc)
+            return
+        self.add_log("info", "dashboard.harvest_report_saved", path=str(path))
 
     def _run_localization(self, cancel: CancelToken) -> None:
         """Background job: run the pipeline and report its outcome."""
         try:
+            self._ensure_runtime(cancel)
             total = self._execute_pipeline(cancel)
             self._report_outcome(total)
+        except RuntimeSetupError as exc:
+            logger.error("Runtime setup failed: %s", exc.detail)
+            reason = self._translate_text(exc.reason_key, error=exc.detail[:200])
+            self._notify("error", "dashboard.runtime_setup_failed", reason=reason)
         except OperationCancelled:
             self.add_log("warning", "dashboard.status_cancelled")
             self._set_status("dashboard.status_cancelled")
@@ -476,11 +549,11 @@ class AppBackend(QObject):
             self._notify("error", "dashboard.status_translation_failed", error=str(exc)[:300])
         except FileNotFoundError as exc:
             logger.warning("Pipeline prerequisite missing: %s", exc)
-            self.add_log("warning", "dashboard.prerequisite_missing", error=str(exc))
+            self._warn("warning", "dashboard.prerequisite_missing", error=str(exc))
             self._set_status("dashboard.prerequisite_missing", error=str(exc))
         except Exception as exc:
             logger.exception("Pipeline failure")
-            self.add_log("error", "dashboard.status_error", error=str(exc))
+            self._warn("error", "dashboard.status_error", error=str(exc))
             self._set_status("dashboard.status_error", error=str(exc))
         finally:
             self._cancel_token = None
@@ -489,13 +562,15 @@ class AppBackend(QObject):
     def _report_outcome(self, total: int) -> None:
         """Completed with a count, or 'no strings' only when the harvest itself found none."""
         if total == 0 and self.pipeline.last_harvest_count == 0:
-            self.add_log("warning", "dashboard.status_no_strings_found")
+            self._warn("warning", "dashboard.status_no_strings_found")
             self._set_status("dashboard.status_no_strings_found")
             return
         self.add_log("success" if total else "warning", "dashboard.status_completed", count=total)
         self._set_status("dashboard.status_completed", count=total)
         if not self._profile_hook_ready():
-            self.add_log("warning", "dashboard.status_hook_missing_proxy")
+            self._warn("warning", "dashboard.status_hook_missing_proxy")
+        else:
+            self._report_runtime_log()
 
         # Publish completion summary event for UI modal
         harvested = self.pipeline.last_harvest_count
@@ -508,7 +583,10 @@ class AppBackend(QObject):
             unchanged = sum(1 for r in self.pipeline.last_session.rows if r.status == "unchanged")
 
         rate_val = (total / harvested * 100) if harvested > 0 else 100.0
+        runs = int(self.config.get("completed_runs", 0) or 0) + (1 if total else 0)
+        self.config.set("completed_runs", runs)
         summary = {
+            "show_support": runs >= SUPPORT_PROMPT_MIN_RUNS and not self.config.get("hide_support_prompt", False),
             "total_harvested": harvested,
             "translated_count": total,
             "failed_count": failed,
@@ -521,6 +599,16 @@ class AppBackend(QObject):
             "has_exe": bool(self._profile and self._profile.game_exe and self._profile.game_exe.is_file()),
         }
         self.pipelineCompleted.emit(summary)
+
+    def _report_runtime_log(self) -> None:
+        """Tell whether BepInEx has really started in the game, from its own LogOutput.log."""
+        status = inspect_runtime_log(self._game_dir())
+        if status.state == LOG_OK:
+            self._warn("success", "dashboard.runtime_log_ok")
+        elif status.state == LOG_ERROR:
+            self._warn("warning", "dashboard.runtime_log_error", error=status.detail)
+        else:
+            self._warn("info", "dashboard.runtime_log_missing")
 
     def _profile_hook_ready(self) -> bool:
         """Re-check the hook after a run: translations only show up in game with it."""
@@ -665,6 +753,7 @@ class AppBackend(QObject):
                 tmp_override_font=self._tmp_override_font(),
                 preferred_bundle=font_bundle,
                 override_font=self._override_font_ugui(),
+                is_il2cpp=profile.is_il2cpp,
             )
             key = "toolbox.font_inject_success" if success else "toolbox.font_inject_fail"
             self._notify("success" if success else "error", key)
@@ -672,46 +761,45 @@ class AppBackend(QObject):
             logger.exception("Font provisioning failed")
             self.add_log("error", "toolbox.font_inject_error", error=str(exc))
 
-    @pyqtSlot()
-    def installHooks(self) -> None:
-        """Autonomously download and deploy BepInEx and AutoTranslator into target game."""
-        if not self._can_start_job() or self._profile is None:
-            return
+    def _ensure_runtime(self, cancel: CancelToken) -> None:
+        """Install or repair BepInEx + XUnity for this game when it is missing or mismatched.
+
+        Runs silently at the start of every translation; the user only sees a status line.
+        Raises ``RuntimeSetupError`` when the download or install fails.
+        """
         profile = self._profile
-        if not profile.is_windows_build:
-            # The pinned BepInEx/XUnity packages and Doorstop proxies are Windows binaries.
-            self._notify("warning", "toolbox.hook_platform_unsupported")
+        if profile is None:
             return
-        game_dir = self._game_dir()
-        target_lang = self.targetLanguage
-        source_lang = resolve_source_language(self.sourceLanguage)
-        self.add_log("info", "toolbox.hook_installing")
-        self.toastRequested.emit(self._translate_text("toolbox.hook_installing_toast"), "info")
-
-        def _job() -> None:
-            try:
-                success = HookInstaller.install(
-                    game_dir,
-                    is_64bit=profile.is_64bit,
-                    is_il2cpp=profile.is_il2cpp,
-                    target_lang=target_lang,
-                    progress_callback=self._handle_progress,
-                    unity_version=profile.unity_version,
-                    source_lang=source_lang,
-                    metadata_version=profile.metadata_version,
-                )
-                if not success:
-                    self._notify("error", "toolbox.hook_installed_fail")
-                    return
-                self._reprofile()
-                self.add_log("success", "toolbox.hook_installed_success")
-                self._set_status("dashboard.status_ready")
-                self.toastRequested.emit(self._translate_text("toolbox.hook_installed_success"), "success")
-            except Exception as exc:
-                logger.exception("Hook installation error")
-                self._notify("error", "toolbox.hook_install_error", error=str(exc))
-
-        self._run_in_background(_job)
+        if not (profile.is_windows_build or profile.is_linux_build):
+            # Pinned packages exist for Windows and Linux players only (not macOS).
+            self._warn("warning", "toolbox.hook_platform_unsupported")
+            return
+        if profile.is_linux_build:
+            self._post_notice("info", "dashboard.linux_native_hint")
+        elif sys.platform.startswith("linux"):
+            self._post_notice("info", "dashboard.proton_hint")
+        args = (profile.is_64bit, profile.is_il2cpp, profile.metadata_version, profile.is_linux_build)
+        if not HookInstaller.needs_install(self._game_dir(), *args):
+            return
+        if not profile.architecture_certain:
+            self._warn("warning", "dashboard.bitness_uncertain")
+        checkpoint(cancel)
+        self._set_status("dashboard.status_preparing_runtime")
+        self.add_log("info", "dashboard.status_preparing_runtime")
+        HookInstaller.ensure_runtime(
+            self._game_dir(),
+            is_64bit=profile.is_64bit,
+            is_il2cpp=profile.is_il2cpp,
+            target_lang=self.targetLanguage,
+            progress_callback=self._handle_progress,
+            unity_version=profile.unity_version,
+            source_lang=resolve_source_language(self.sourceLanguage),
+            metadata_version=profile.metadata_version,
+            linux=profile.is_linux_build,
+            executable_name=profile.game_exe.name if profile.game_exe else "",
+        )
+        self._reprofile()
+        checkpoint(cancel)
 
     def _reprofile(self) -> None:
         """Refresh the profile after hooks changed the game folder."""

@@ -111,8 +111,8 @@ def test_merge_ini_is_idempotent() -> None:
     assert once == "[Behaviour]\nForceUIResizing=False\n\n[General]\nLanguage=tr\n"
 
 
-def test_font_bootstrap_il2cpp_disables_imgui_and_uses_system_font(tmp_path: Path) -> None:
-    """IL2CPP builds bypass AssetBundles, disable unsupported IMGUI and use OS system font."""
+def test_font_bootstrap_il2cpp_disables_imgui_and_adds_a_system_font_fallback(tmp_path: Path) -> None:
+    """IL2CPP builds bypass AssetBundles, disable unsupported IMGUI and add an OS font as TMP fallback."""
     font_dir = tmp_path / "BepInEx" / "font"
     font_dir.mkdir(parents=True)
     (font_dir / "arialuni_sdf_u6000").write_bytes(b"UnityFS")
@@ -122,5 +122,5 @@ def test_font_bootstrap_il2cpp_disables_imgui_and_uses_system_font(tmp_path: Pat
     content = ini_file.read_text(encoding="utf-8-sig")
 
     assert "EnableIMGUI=False" in content
-    assert "OverrideFontTextMeshPro=Arial" in content
-    assert "FallbackFontTextMeshPro=\n" in content or "FallbackFontTextMeshPro=\r\n" in content
+    assert "FallbackFontTextMeshPro=Arial" in content
+    assert "OverrideFontTextMeshPro=\n" in content or "OverrideFontTextMeshPro=\r\n" in content

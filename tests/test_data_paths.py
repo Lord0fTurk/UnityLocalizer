@@ -90,6 +90,8 @@ def backend(tmp_path: Path, monkeypatch: Any) -> Any:
 
     config_path = tmp_path / "config.json"
     monkeypatch.setattr(module, "ConfigManager", lambda: ConfigManager(config_path))
+    # Runs must never download BepInEx during tests; runtime-setup tests override this.
+    monkeypatch.setattr(module.HookInstaller, "needs_install", classmethod(lambda cls, *a, **k: False))
     instance = module.AppBackend()
     instance.config_path = config_path
     return instance
@@ -201,18 +203,22 @@ def test_completed_run_without_hook_warns_that_bepinex_is_missing(backend: Any, 
     assert any("BepInEx" in entry["message"] or "status_hook_missing_proxy" in entry["message"] for entry in backend.logs)
 
 
-def test_hook_install_is_refused_for_non_windows_builds(backend: Any, tmp_path: Path, monkeypatch: Any) -> None:
+def test_runtime_setup_is_skipped_with_a_warning_for_unsupported_platforms(
+    backend: Any, tmp_path: Path, monkeypatch: Any
+) -> None:
+    import src.backend.app_backend as module
+    from src.core.progress import CancelToken
+
     game = tmp_path / "Game"
     (game / "Game_Data").mkdir(parents=True)
-    (game / "Game.x86_64").write_bytes(b"\x7fELF")
-    (game / "UnityPlayer.so").write_bytes(b"\x7fELF")
+    (game / "Game_Data" / "globalgamemanagers").write_bytes(b"x")
+    (game / "Game").write_bytes(b"\xcf\xfa\xed\xfe")  # Mach-O: no BepInEx package for macOS
     backend.selectGame(str(game))
-    started: list[Any] = []
-    monkeypatch.setattr(backend, "_run_in_background", started.append)
+    assert backend._profile is not None and not backend._profile.is_windows_build
+    monkeypatch.setattr(module.HookInstaller, "needs_install", classmethod(lambda cls, *a, **k: pytest.fail("checked")))
 
-    backend.installHooks()
-    assert started == []
-    assert backend._status_key == "toolbox.hook_platform_unsupported"
+    backend._ensure_runtime(CancelToken())
+    assert any("hook_platform_unsupported" in entry["message"] for entry in backend.logs)
 
 
 def test_patch_export_is_refused_with_the_reason(backend: Any, tmp_path: Path, monkeypatch: Any) -> None:
@@ -241,3 +247,57 @@ def test_tmp_system_font_setting_reaches_the_pipeline(backend: Any, monkeypatch:
     backend._game_path = "."
     backend._execute_pipeline(CancelToken())
     assert seen == ["Arial"]
+
+
+def test_run_installs_runtime_first_and_reports_status(backend: Any, tmp_path: Path, monkeypatch: Any) -> None:
+    import src.backend.app_backend as module
+    from src.core.progress import CancelToken
+
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(module.HookInstaller, "needs_install", classmethod(lambda cls, *a, **k: True))
+    monkeypatch.setattr(module.HookInstaller, "ensure_runtime", classmethod(lambda cls, *a, **k: calls.append(k) or True))
+    statuses: list[str] = []
+    monkeypatch.setattr(backend, "_set_status", lambda key, **kw: statuses.append(key))
+    backend.selectGame(str(_game(tmp_path)))
+    backend._ensure_runtime(CancelToken())
+    assert len(calls) == 1 and calls[0]["is_il2cpp"] is False
+    assert "dashboard.status_preparing_runtime" in statuses
+
+
+def test_runtime_setup_failure_stops_the_run_with_a_clear_message(backend: Any, tmp_path: Path, monkeypatch: Any) -> None:
+    import src.backend.app_backend as module
+    from src.core.hook_manager.installer import RuntimeSetupError
+    from src.core.progress import CancelToken
+
+    def offline(cls: Any, *a: Any, **k: Any) -> bool:
+        raise RuntimeSetupError("installer.reason_network", "getaddrinfo failed")
+
+    monkeypatch.setattr(module.HookInstaller, "needs_install", classmethod(lambda cls, *a, **k: True))
+    monkeypatch.setattr(module.HookInstaller, "ensure_runtime", classmethod(offline))
+    monkeypatch.setattr(backend, "_execute_pipeline", lambda cancel: pytest.fail("pipeline must not start"))
+    backend.selectGame(str(_game(tmp_path)))
+    backend._run_localization(CancelToken())
+    assert backend._status_key == "dashboard.runtime_setup_failed"
+    assert backend._status_params["reason"] == "installer.reason_network"
+
+
+def test_linux_host_gets_the_proton_launch_option_hint(backend: Any, tmp_path: Path, monkeypatch: Any) -> None:
+    import src.backend.app_backend as module
+    from src.core.progress import CancelToken
+
+    monkeypatch.setattr(module.sys, "platform", "linux")
+    backend.selectGame(str(_game(tmp_path)))
+    backend._ensure_runtime(CancelToken())
+    assert any(n["text"] == "dashboard.proton_hint" for n in backend.notices)
+
+
+def test_support_prompt_appears_from_the_third_finished_run_until_dismissed(backend: Any, tmp_path: Path) -> None:
+    backend._game_path = str(tmp_path)
+    backend.pipeline.last_harvest_count = 10
+    seen: list[bool] = []
+    backend.pipelineCompleted.connect(lambda summary: seen.append(summary["show_support"]))
+    for _ in range(3):
+        backend._report_outcome(10)
+    backend.setSetting("hide_support_prompt", True)
+    backend._report_outcome(10)
+    assert seen == [False, False, True, False]

@@ -6,11 +6,22 @@ from __future__ import annotations
 import json
 import logging
 import xml.etree.ElementTree as ET
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from src.core.cjk import is_single_cjk
 from src.core.parsers.ink_json import ink_strings, is_ink_document
-from src.core.parsers.loc_table import detect_layout, looks_like_identifier, parse_rows, table_strings
+from src.core.parsers.loc_table import (
+    base_language,
+    detect_layout,
+    key_language,
+    looks_like_identifier,
+    parse_rows,
+    table_strings,
+)
 from src.core.parsers.yarn_lines import looks_like_yarn, yarn_strings
+
+if TYPE_CHECKING:
+    from src.core.harvesters.harvest_stats import HarvestStats
 
 logger = logging.getLogger(__name__)
 
@@ -37,27 +48,60 @@ def is_technical_key(key: str) -> bool:
     return False
 
 
-def strings_from_json_data(data: Any, key_name: str = "") -> list[str]:
-    """Collect string leaves from parsed JSON, skipping technical keys."""
+# A record with this many different languages among its field names is one multi-language entry.
+MIN_RECORD_LANGUAGES = 3
+
+
+def language_children(
+    node: dict[str, Any], source_lang: str, stats: "HarvestStats | None" = None
+) -> list[tuple[Any, str]]:
+    """Fields of a JSON object to read: only the source language of a multi-language record.
+
+    ``{"id": "a", "english_text": "...", "french_text": "...", "japanese_text": "..."}``
+    carries one text per language; harvesting all of them would translate the same
+    line several times, in languages the player never reads.
+    """
+    tags = {key: key_language(str(key)) for key, value in node.items() if isinstance(value, (str, dict, list))}
+    languages = {tag for tag in tags.values() if tag}
+    if len(languages) < MIN_RECORD_LANGUAGES:
+        return [(value, str(key).lower()) for key, value in node.items()]
+    wanted = base_language(source_lang)
+    if stats is not None:
+        if wanted in languages:
+            stats.tables_matched += 1
+        else:
+            stats.tables_skipped.update(languages)
+    return [
+        (value, str(key).lower()) for key, value in node.items()
+        if tags.get(key) is None or tags[key] == wanted
+    ]
+
+
+def strings_from_json_data(
+    data: Any, key_name: str = "", source_lang: str = "en", stats: "HarvestStats | None" = None
+) -> list[str]:
+    """Collect string leaves from parsed JSON, skipping technical keys and other languages."""
     found: list[str] = []
     stack: list[tuple[Any, str]] = [(data, key_name)]
     while stack:
         item, key = stack.pop()
         if isinstance(item, dict):
-            stack.extend((v, str(k).lower()) for k, v in item.items())
+            stack.extend(language_children(item, source_lang, stats))
         elif isinstance(item, list):
             stack.extend((elem, key) for elem in item)
-        elif isinstance(item, str) and len(item.strip()) > 1 and not is_technical_key(key):
+        elif isinstance(item, str) and (len(item.strip()) > 1 or is_single_cjk(item)) and not is_technical_key(key):
             found.append(item)
     found.reverse()
     return found
 
 
-def strings_from_json_document(data: Any) -> list[str]:
+def strings_from_json_document(
+    data: Any, source_lang: str = "en", stats: "HarvestStats | None" = None
+) -> list[str]:
     """Collect strings from parsed JSON, dispatching compiled Ink stories to their extractor."""
     if is_ink_document(data):
         return ink_strings(data)
-    return strings_from_json_data(data)
+    return strings_from_json_data(data, "", source_lang, stats)
 
 
 def strings_from_csv_text(text: str, delimiter: str = ",", source_lang: str = "en") -> list[str]:
@@ -95,7 +139,7 @@ def strings_from_xml_text(text: str) -> list[str]:
     except ET.ParseError as exc:
         logger.debug("XML parse failed: %s", exc)
         return []
-    return [chunk.strip() for chunk in root.itertext() if len(chunk.strip()) > 1]
+    return [chunk.strip() for chunk in root.itertext() if len(chunk.strip()) > 1 or is_single_cjk(chunk)]
 
 
 def translate_xml_text(text: str, translations: dict[str, str]) -> str | None:
@@ -129,14 +173,14 @@ def translate_xml_text(text: str, translations: dict[str, str]) -> str | None:
     return body
 
 
-def sniff_and_extract(text: str) -> list[str]:
+def sniff_and_extract(text: str, source_lang: str = "en", stats: "HarvestStats | None" = None) -> list[str]:
     """Detect the content format of an untyped text blob and extract its strings."""
     stripped = text.lstrip("\ufeff").strip()
     if not stripped:
         return []
     if stripped[0] in "{[":
         try:
-            return strings_from_json_document(json.loads(stripped))
+            return strings_from_json_document(json.loads(stripped, strict=False), source_lang, stats)
         except json.JSONDecodeError:
             logger.debug("Blob looked like JSON but failed to parse; using line mode")
     if stripped.startswith("<"):
@@ -147,7 +191,7 @@ def sniff_and_extract(text: str) -> list[str]:
         return yarn_strings(stripped)
     delimiter = _detect_table_delimiter(stripped)
     if delimiter:
-        return strings_from_csv_text(stripped, delimiter)
+        return strings_from_csv_text(stripped, delimiter, source_lang)
     return strings_from_lines(stripped)
 
 

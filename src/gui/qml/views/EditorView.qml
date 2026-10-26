@@ -54,7 +54,7 @@ Item {
                 width: 38; height: 38; radius: 10
                 color: tint(clrAccent, 0.12)
                 border.color: tint(clrAccent, 0.3); border.width: 1
-                Label { anchors.centerIn: parent; text: "📝"; font.pixelSize: 18 }
+                Icon { anchors.centerIn: parent; glyph: Icons.squarePen; size: 20; color: clrAccent }
             }
 
             ColumnLayout {
@@ -172,7 +172,7 @@ Item {
                     anchors.leftMargin: 12; anchors.rightMargin: 12
                     spacing: 8
 
-                    Label { text: "🔍"; font.pixelSize: 12; color: clrTxtDim }
+                    Icon { glyph: Icons.search; size: 14; color: clrTxtDim }
 
                     TextInput {
                         id: searchInput
@@ -311,13 +311,18 @@ Item {
                             onActiveFocusChanged: { if (!activeFocus) commitEdit(); }
                         }
 
-                        Label {
+                        RowLayout {
                             Layout.fillWidth: true
                             visible: modelData.errors.length > 0
-                            wrapMode: Text.WordWrap
-                            text: "⚠️ " + modelData.errors
-                            font.pixelSize: 11
-                            color: clrError
+                            spacing: 6
+                            Icon { glyph: Icons.triangleAlert; size: 14; color: clrError; Layout.alignment: Qt.AlignTop }
+                            Label {
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                text: modelData.errors
+                                font.pixelSize: 11
+                                color: clrError
+                            }
                         }
                     }
                 }

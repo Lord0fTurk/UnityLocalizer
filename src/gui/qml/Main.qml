@@ -97,7 +97,7 @@ ApplicationWindow {
                             anchors.fill: parent
                             anchors.margins: 4
                             source: appBackend ? appBackend.get_asset_url("icon.png") : ""
-                            sourceSize: Qt.size(64, 64)
+                            sourceSize: Qt.size(128, 128)
                             fillMode: Image.PreserveAspectFit
                             smooth: true
                             mipmap: true
@@ -264,13 +264,20 @@ ApplicationWindow {
 
                 Button {
                     id: btnPatreonSupport
+                    // Warm pink instead of the error red: this is an invitation, not an alarm.
+                    readonly property color supportColor: "#F472B6"
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 38
+                    Layout.preferredHeight: 48
                     topInset: 0
                     bottomInset: 0
                     leftInset: 0
                     rightInset: 0
+                    // The Material style pads left and right unevenly unless each side is set.
                     padding: 0
+                    leftPadding: 0
+                    rightPadding: 0
+                    topPadding: 0
+                    bottomPadding: 0
                     scale: down ? 0.96 : (hovered ? 1.02 : 1.0)
                     transformOrigin: Item.Center
                     Behavior on scale { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
@@ -278,30 +285,55 @@ ApplicationWindow {
 
                     background: Rectangle {
                         radius: Theme.radiusControl
-                        color: btnPatreonSupport.down ? Qt.rgba(239/255, 68/255, 68/255, 0.22) : (btnPatreonSupport.hovered ? Qt.rgba(239/255, 68/255, 68/255, 0.12) : "transparent")
-                        border.color: btnPatreonSupport.hovered ? clrError : Qt.rgba(239/255, 68/255, 68/255, 0.35)
+                        color: Qt.rgba(244/255, 114/255, 182/255, btnPatreonSupport.down ? 0.22 : (btnPatreonSupport.hovered ? 0.14 : 0.06))
+                        border.color: Qt.rgba(244/255, 114/255, 182/255, btnPatreonSupport.hovered ? 0.9 : 0.4)
                         border.width: 1
                         Behavior on color { ColorAnimation { duration: 150 } }
                         Behavior on border.color { ColorAnimation { duration: 150 } }
                     }
 
-                    contentItem: RowLayout {
-                        spacing: 8
-                        Item { Layout.fillWidth: true }
-                        Icon {
-                            glyph: Icons.heart
-                            size: 14
-                            color: clrError
+                    // One group centred as a whole: its width is exactly icon + gap + text, so no
+                    // spare column width shifts it sideways.
+                    contentItem: Item {
+                        Row {
+                            id: supportRow
+                            anchors.centerIn: parent
+                            spacing: 10
+                            Icon {
+                                id: supportHeart
+                                glyph: Icons.heart
+                                size: 18
+                                color: btnPatreonSupport.supportColor
+                                anchors.verticalCenter: parent.verticalCenter
+                                // A slow heartbeat; it quickens while the pointer is over the button.
+                                SequentialAnimation on scale {
+                                    loops: Animation.Infinite
+                                    running: window.visible
+                                    NumberAnimation { to: 1.18; duration: btnPatreonSupport.hovered ? 280 : 620; easing.type: Easing.OutQuad }
+                                    NumberAnimation { to: 1.0; duration: btnPatreonSupport.hovered ? 280 : 620; easing.type: Easing.InQuad }
+                                    PauseAnimation { duration: btnPatreonSupport.hovered ? 0 : 900 }
+                                }
+                            }
+                            Column {
+                                anchors.verticalCenter: parent.verticalCenter
+                                Label {
+                                    width: Math.min(implicitWidth, 150)
+                                    text: window.t("nav.patreon_support")
+                                    color: btnPatreonSupport.hovered ? clrTxt : btnPatreonSupport.supportColor
+                                    font.pixelSize: 12
+                                    font.bold: true
+                                    elide: Text.ElideRight
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                }
+                                Label {
+                                    width: Math.min(implicitWidth, 150)
+                                    text: window.t("nav.patreon_sub")
+                                    color: clrTxtDim
+                                    font.pixelSize: 10
+                                    elide: Text.ElideRight
+                                }
+                            }
                         }
-                        Label {
-                            text: window.t("nav.patreon_support")
-                            color: btnPatreonSupport.hovered ? clrTxt : Qt.rgba(239/255, 68/255, 68/255, 0.9)
-                            font.pixelSize: 12
-                            font.bold: true
-                            elide: Text.ElideRight
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                        }
-                        Item { Layout.fillWidth: true }
                     }
                 }
             }

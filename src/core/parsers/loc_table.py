@@ -92,6 +92,44 @@ def header_language(cell: str) -> str | None:
     return next((c for c, aliases in LANGUAGE_ALIASES.items() if first_word == aliases[0]), None)
 
 
+# Country names used as language tags in data fields ("korea_text", "Turkey_text").
+_COUNTRY_TAGS: dict[str, str] = {
+    "korea": "ko", "spain": "es", "turkey": "tr", "germany": "de", "france": "fr", "russia": "ru",
+    "japan": "ja", "china": "zh", "brazil": "pt", "italy": "it", "poland": "pl", "vietnam": "vi",
+    "indonesia": "id", "ukraine": "uk", "netherlands": "nl", "portugal": "pt", "mandarin": "zh",
+    "taiwan": "zh",
+}
+# Short tokens safe to read as a language inside a longer key ("text_tr"); "id", "uk", "no", "is" are not.
+_SHORT_TAGS: dict[str, str] = {
+    "en": "en", "de": "de", "fr": "fr", "es": "es", "it": "it", "pt": "pt", "ru": "ru", "pl": "pl",
+    "ja": "ja", "jp": "ja", "ko": "ko", "kr": "ko", "zh": "zh", "cn": "zh", "tw": "zh", "tr": "tr",
+    "ar": "ar", "th": "th", "vi": "vi", "nl": "nl",
+}
+_KEY_TOKEN_RE = re.compile(r"[_\-\s.]+|(?<=[a-z])(?=[A-Z])")
+
+
+def key_language(key: str) -> str | None:
+    """Base language a data-field name stands for, e.g. 'english_text' -> 'en', 'Turkey_text' -> 'tr'.
+
+    A whole-key match ('English', 'ja', 'zh-CN') is exact; inside a longer key only full
+    language or country names and a short list of unambiguous codes count.
+    """
+    whole = header_language(key)
+    if whole:
+        return whole
+    for token in _KEY_TOKEN_RE.split(key.strip()):
+        lowered = token.lower()
+        if lowered in _SHORT_TAGS:
+            return _SHORT_TAGS[lowered]
+        if lowered in _COUNTRY_TAGS:
+            return _COUNTRY_TAGS[lowered]
+        if len(lowered) >= 4:
+            code = next((c for c, aliases in LANGUAGE_ALIASES.items() if lowered == aliases[0]), None)
+            if code:
+                return code
+    return None
+
+
 def _code_for_alias(alias: str) -> str | None:
     """Return the base language code an exact alias belongs to."""
     return next((code for code, aliases in LANGUAGE_ALIASES.items() if alias in aliases), None)

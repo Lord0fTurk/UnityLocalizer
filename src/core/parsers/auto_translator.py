@@ -55,6 +55,14 @@ def expand_dialogue_and_quote_variants(translations: dict[str, str]) -> dict[str
             if k_curly != k and k_curly not in expanded:
                 expanded[k_curly] = v_curly
 
+    # Games that store "\n" as two characters turn it into a real line break just before
+    # drawing, and XUnity only ever sees the drawn text. Keep the stored form as well.
+    for k, v in list(expanded.items()):
+        if "\\n" in k or "\\r" in k:
+            k_real = k.replace("\\r\\n", "\r\n").replace("\\n", "\n").replace("\\r", "\r")
+            v_real = v.replace("\\r\\n", "\r\n").replace("\\n", "\n").replace("\\r", "\r")
+            expanded.setdefault(k_real, v_real)
+
     return expanded
 
 

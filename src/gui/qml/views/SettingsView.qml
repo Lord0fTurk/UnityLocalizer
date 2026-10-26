@@ -42,8 +42,12 @@ ScrollView {
         // Page header (DESIGN.md §4: 22px SemiBold textPrimary, 13px textSecondary)
         Column {
             spacing: 6
-            Text {
-                text: "⚙️ " + root.t("settings.title")
+            IconLabel {
+                glyph: Icons.settings
+                iconColor: Theme.accentSolid
+                spacing: 10
+                alignment: Qt.AlignLeft
+                text: root.t("settings.title")
                 font.pixelSize: 22
                 font.bold: true
                 color: Theme.textPrimary
@@ -326,7 +330,7 @@ ScrollView {
                 description: root.t("settings.ui_language_desc")
                 NeonSelect {
                     Layout.preferredWidth: 340
-                    icon: "🌐"
+                    iconGlyph: Icons.globe
                     caption: root.t("settings.ui_language_caption")
                     model: localeManager ? localeManager.supportedLanguages : []
                     currentValue: localeManager ? localeManager.currentLanguage : ""
@@ -601,9 +605,10 @@ ScrollView {
                         font.pixelSize: 13
                         font.bold: true
                     }
-                    Button {
-                        text: "🗑️ " + root.t("settings.cache_clear_btn")
-                        topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0
+                    SecondaryButton {
+                        iconGlyph: Icons.trash2
+                        destructive: true
+                        text: root.t("settings.cache_clear_btn")
                         enabled: Boolean(appBackend && appBackend.cacheEntryCount > 0 && !appBackend.isBusy)
                         onClicked: clearCacheDialog.open()
                     }
@@ -719,7 +724,11 @@ ScrollView {
                         contentItem: RowLayout {
                             spacing: 6
                             anchors.centerIn: parent
-                            Text { text: "➕"; font.pixelSize: 12 }
+                            Icon {
+                                glyph: Icons.plus
+                                size: 14
+                                color: glossaryAddBtn.enabled ? Theme.accentContrastText : Theme.textMuted
+                            }
                             Text {
                                 text: root.t("settings.glossary_add_btn")
                                 font.pixelSize: 13
@@ -763,7 +772,11 @@ ScrollView {
                             Label { text: "→"; color: clrTxtDim }
                             Label { Layout.preferredWidth: 1; Layout.fillWidth: true; text: modelData.replacement; color: clrAccent; font.pixelSize: 13; elide: Text.ElideRight }
                             ToolButton {
-                                text: "🗑️"
+                                contentItem: Icon {
+                                    glyph: Icons.trash2
+                                    size: 16
+                                    color: parent.hovered ? Theme.statusDanger : Theme.textMuted
+                                }
                                 ToolTip.visible: hovered
                                 ToolTip.text: root.t("settings.glossary_remove")
                                 onClicked: { if (appBackend) appBackend.removeGlossaryTerm(modelData.term); }
@@ -794,9 +807,9 @@ ScrollView {
                     hint: root.t("settings.tm_files_hint")
                     minLines: 3
                 }
-                Button {
-                    text: "📂 " + root.t("settings.tm_add_file_btn")
-                    topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0
+                SecondaryButton {
+                    iconGlyph: Icons.folderOpen
+                    text: root.t("settings.tm_add_file_btn")
                     onClicked: tmFileDialog.open()
                 }
                 SettingSwitch { key: "tm_fuzzy"; label: root.t("settings.tm_fuzzy_checkbox"); description: root.t("settings.tm_fuzzy_desc") }

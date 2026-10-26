@@ -8,13 +8,16 @@ from collections.abc import Callable
 from pathlib import Path
 
 from src.core.engine_profiler import EngineProfiler, UnityGameProfile
+from src.core.harvesters.anti_mod import MAX_REPORTED_NAMES, find_bepinex_removers
 from src.core.harvesters.harvest_collector import HarvestCollector, HarvestResult
+from src.core.harvesters.harvest_stats import HarvestStats
 from src.core.hook_layout import dictionary_path, substitutions_path
 from src.core.hook_manager.font_bootstrap import FontBootstrap
 from src.core.hook_manager.font_provisioner import FontProvisioner
 from src.core.hook_manager.glyph_coverage import analyze_coverage, tmp_bundle_codepoints
 from src.core.lang_detect import SourceLanguageDetector
-from src.core.languages import AUTO, english_name
+from src.core.lang_detect.script_filter import filter_foreign_script
+from src.core.languages import AUTO, canonical_language_code, english_name
 from src.core.parsers.auto_translator import AutoTranslatorParser
 from src.core.parsers.loc_table import DEFAULT_SOURCE_LANGUAGE, base_language, resolve_source_language
 from src.core.parsers.streaming_assets import StreamingAssetsParser
@@ -27,6 +30,12 @@ from src.core.translators.google import GoogleTranslator
 from src.core.translators.manager import TranslationManager
 
 logger = logging.getLogger(__name__)
+
+
+def _names(files: list[str], limit: int = 3) -> str:
+    """A short, readable list of file names for a message ("a, b, c and 4 more")."""
+    shown = ", ".join(files[:limit])
+    return f"{shown} (+{len(files) - limit})" if len(files) > limit else shown
 
 
 def make_bilingual(source: str, translation: str, template: str = "{target}\n({source})") -> str:
@@ -77,6 +86,7 @@ class UnityTranslationPipeline:
         self.progress_callback: ProgressCallback | None = None
         self.last_session: ReviewSession | None = None
         self.last_harvest_count = 0
+        self.last_harvest_stats: HarvestStats | None = None
         # XUnity OverrideFontTextMeshPro to deploy (None leaves the INI value alone).
         self.tmp_override_font: str | None = None
         # XUnity OverrideFont (uGUI / UnityEngine.UI.Text) to deploy.
@@ -150,14 +160,20 @@ class UnityTranslationPipeline:
         """
         self.last_session = None
         self.last_harvest_count = 0
+        self.last_harvest_stats = None
         profile = EngineProfiler.profile_game(game_dir)
+        self._warn_if_anti_mod(profile)
         harvest = HarvestCollector(self._report, resolve_source_language(source_lang)).collect(profile, cancel)
         self.last_harvest_count = len(harvest.strings)
         logger.info("Unified harvest: %d unique strings", len(harvest.strings))
         if not harvest.strings:
+            self._report_harvest_coverage(harvest.stats)
             return 0
 
         harvest, source_lang = self._resolve_source(profile, harvest, source_lang, target_lang, engine, cancel)
+        self._drop_foreign_script(harvest, source_lang)
+        self.last_harvest_stats = harvest.stats
+        self._report_harvest_coverage(harvest.stats)
         concrete_source = resolve_source_language(source_lang)
         self._announce_plan(harvest.strings, source_lang, target_lang, engine)
         report = self.runner.run(
@@ -205,20 +221,84 @@ class UnityTranslationPipeline:
         """
         if source_lang != AUTO:
             return harvest, source_lang
-        detected = self._detect_source_language(harvest.strings, target_lang, engine, cancel)
+        detected = self._detect_source_language(harvest.strings, target_lang, engine, cancel, harvest.stats)
         if detected is None:
             return harvest, source_lang
-        needs_reharvest = bool(harvest.streaming_files) and base_language(detected) != DEFAULT_SOURCE_LANGUAGE
+        language_dependent = bool(harvest.streaming_files) or harvest.stats.language_sensitive
+        needs_reharvest = language_dependent and base_language(detected) != DEFAULT_SOURCE_LANGUAGE
         if needs_reharvest:
             harvest = HarvestCollector(self._report, detected).collect(profile, cancel)
             self.last_harvest_count = len(harvest.strings)
         return harvest, detected
 
+    def _drop_foreign_script(self, harvest: HarvestResult, source_lang: str) -> None:
+        """Leave out strings in another script than the source language (other locales of the game).
+
+        Skipped while the source language is unknown, and when most text would go: that
+        points at a wrong source language setting, which the user is told about instead.
+        """
+        if source_lang == AUTO:
+            return
+        result = filter_foreign_script(harvest.strings, source_lang)
+        if not result.removed:
+            return
+        language = english_name(resolve_source_language(source_lang))
+        if result.mismatch:
+            emit(self._report, "pipeline.source_script_mismatch", language=language, count=result.removed)
+            return
+        harvest.strings = result.kept
+        self.last_harvest_count = len(result.kept)
+        emit(self._report, "pipeline.foreign_text_removed", count=result.removed, language=language)
+
+    @staticmethod
+    def _table_locale_hint(guess: str | None, stats: HarvestStats) -> str | None:
+        """Language of localization tables that only exist in a non-English locale.
+
+        With the English default, a game that ships only Japanese StringTables yields no
+        table text at all; the remaining strings can then be misdetected as English or
+        not detected. A confident non-English guess is kept; otherwise the tables decide.
+        """
+        if guess is not None and base_language(guess) != DEFAULT_SOURCE_LANGUAGE:
+            return None
+        seen = stats.dominant_skipped_locale()
+        return canonical_language_code(seen) if seen else None
+
+    def _warn_if_anti_mod(self, profile: UnityGameProfile) -> None:
+        """Warn when the game contains code that deletes BepInEx (the translation would not show)."""
+        removers = find_bepinex_removers(profile)
+        if removers:
+            logger.warning("Game removes BepInEx at start: %s", removers)
+            emit(self._report, "pipeline.anti_mod_detected", names=", ".join(removers[:MAX_REPORTED_NAMES]))
+
+    def _report_harvest_coverage(self, stats: HarvestStats) -> None:
+        """Tell the user which parts of the game could not be read completely."""
+        logger.info("Harvest coverage: %s", stats.to_report())
+        unreadable = stats.files_failed
+        if unreadable:
+            emit(self._report, "pipeline.harvest_warn_unreadable_files", count=len(unreadable), names=_names(unreadable))
+        if stats.raw_scanned_objects:
+            emit(
+                self._report, "pipeline.harvest_warn_raw_scan",
+                count=stats.raw_scanned_objects, files=len(stats.raw_scanned_files),
+                names=_names(stats.raw_scanned_files),
+            )
+        if stats.encrypted_code:
+            emit(self._report, "pipeline.harvest_warn_code_encrypted")
+
     def _detect_source_language(
-        self, strings: list[str], target_lang: str, engine: TranslationEngine, cancel: CancelToken | None
+        self,
+        strings: list[str],
+        target_lang: str,
+        engine: TranslationEngine,
+        cancel: CancelToken | None,
+        stats: HarvestStats | None = None,
     ) -> str | None:
         """Run the detection chain and emit the user-facing outcome; None when undecided."""
         result = SourceLanguageDetector(self._online_detector(engine)).detect(strings, target_lang, cancel)
+        table_locale = self._table_locale_hint(result.code if result else None, stats or HarvestStats())
+        if table_locale:
+            emit(self._report, "pipeline.source_detected_tables", language=english_name(table_locale), code=table_locale)
+            return table_locale
         if result is None:
             emit(self._report, "pipeline.source_detect_failed")
             return None

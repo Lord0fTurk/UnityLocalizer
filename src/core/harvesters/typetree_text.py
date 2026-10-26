@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Any
 
+from src.core.harvesters.harvest_stats import HarvestStats
 from src.core.parsers.loc_table import base_language, header_language
 from src.core.parsers.text_formats import is_technical_key
 
@@ -70,17 +71,22 @@ def _is_string_table(tree: dict[str, Any]) -> bool:
     return "m_TableData" in tree and "m_LocaleId" in tree
 
 
-def string_table_strings(tree: dict[str, Any], source_lang: str) -> list[str]:
+def string_table_strings(tree: dict[str, Any], source_lang: str, stats: HarvestStats | None = None) -> list[str]:
     """Return ``m_Localized`` values when the table's locale is the source language."""
     locale = tree.get("m_LocaleId") or {}
     code = locale.get("m_Code", "") if isinstance(locale, dict) else ""
-    if code and base_language(code) != base_language(source_lang):
-        return []
-    return [
+    entries = [
         entry["m_Localized"]
         for entry in tree.get("m_TableData") or []
         if isinstance(entry, dict) and isinstance(entry.get("m_Localized"), str) and entry["m_Localized"].strip()
     ]
+    if code and base_language(code) != base_language(source_lang):
+        if stats is not None and entries:
+            stats.tables_skipped[base_language(code)] += len(entries)
+        return []
+    if stats is not None and entries:
+        stats.tables_matched += 1
+    return entries
 
 
 def _i2_source(tree: dict[str, Any]) -> dict[str, Any] | None:
@@ -91,21 +97,27 @@ def _i2_source(tree: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
-def _i2_source_index(languages: list[Any], source_lang: str) -> int:
-    """Index of the source language among I2 ``mLanguages`` entries (first one by default)."""
+def _i2_source_index(languages: list[Any], source_lang: str) -> tuple[int, bool]:
+    """Index of the source language among I2 ``mLanguages`` entries and whether it was listed.
+
+    The first column is the default when the language is not listed.
+    """
     wanted = base_language(source_lang)
     for index, lang in enumerate(languages):
         if not isinstance(lang, dict):
             continue
         code = str(lang.get("Code") or "")
         if (code and base_language(code) == wanted) or header_language(str(lang.get("Name") or "")) == wanted:
-            return index
-    return 0
+            return index, True
+    return 0, False
 
 
-def i2_strings(source: dict[str, Any], source_lang: str) -> list[str]:
+def i2_strings(source: dict[str, Any], source_lang: str, stats: HarvestStats | None = None) -> list[str]:
     """Return the source-language cell of every I2 term."""
-    index = _i2_source_index(source.get("mLanguages") or [], source_lang)
+    index, found_language = _i2_source_index(source.get("mLanguages") or [], source_lang)
+    if stats is not None:
+        stats.i2_sources += 1
+        stats.i2_unmatched += 0 if found_language else 1
     found: list[str] = []
     for term in source.get("mTerms") or []:
         cells = term.get("Languages") if isinstance(term, dict) else None
@@ -146,13 +158,15 @@ def dialogue_database_strings(tree: dict[str, Any]) -> list[str]:
     return found
 
 
-def collect_display_strings(tree: dict[str, Any], source_lang: str = "en") -> list[str]:
+def collect_display_strings(
+    tree: dict[str, Any], source_lang: str = "en", stats: HarvestStats | None = None
+) -> list[str]:
     """Dispatch a TypeTree dict to the matching framework rule or the generic walker."""
     if _is_string_table(tree):
-        return string_table_strings(tree, source_lang)
+        return string_table_strings(tree, source_lang, stats)
     i2_source = _i2_source(tree)
     if i2_source is not None:
-        return i2_strings(i2_source, source_lang)
+        return i2_strings(i2_source, source_lang, stats)
     if _is_dialogue_database(tree):
         return dialogue_database_strings(tree)
     return generic_strings(tree)

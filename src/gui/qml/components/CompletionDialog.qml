@@ -9,7 +9,7 @@ Popup {
     modal: true
     focus: true
     anchors.centerIn: parent
-    width: Math.min(parent.width - 48, 600)
+    width: Math.min(parent.width - 48, 680)
     padding: 20
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
@@ -244,6 +244,68 @@ Popup {
                     font.pixelSize: 11
                     color: Theme.textSecondary
                     elide: Text.ElideMiddle
+                }
+            }
+        }
+
+        // 3b. Support prompt: only from the 3rd finished run, and never again once dismissed
+        Rectangle {
+            Layout.fillWidth: true
+            visible: Boolean(root.summary && root.summary.show_support)
+            implicitHeight: supportCol.implicitHeight + 20
+            radius: Theme.radiusControl
+            color: Qt.rgba(244/255, 114/255, 182/255, 0.07)
+            border.color: Qt.rgba(244/255, 114/255, 182/255, 0.35)
+            border.width: 1
+
+            ColumnLayout {
+                id: supportCol
+                anchors.fill: parent
+                anchors.margins: 10
+                spacing: 6
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+
+                    Icon { glyph: Icons.heart; size: 16; color: "#F472B6" }
+                    Text {
+                        Layout.fillWidth: true
+                        text: root.t("dashboard.completion_support_text")
+                        font.pixelSize: 12
+                        color: Theme.textSecondary
+                        wrapMode: Text.WordWrap
+                    }
+                    Button {
+                        id: supportBtn
+                        implicitHeight: 28
+                        implicitWidth: supportLabel.implicitWidth + 24
+                        topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
+                        background: Rectangle {
+                            radius: Theme.radiusControl
+                            color: Qt.rgba(244/255, 114/255, 182/255, supportBtn.hovered ? 0.28 : 0.16)
+                            border.color: Qt.rgba(244/255, 114/255, 182/255, 0.6)
+                            border.width: 1
+                        }
+                        contentItem: Text {
+                            id: supportLabel
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                            text: root.t("dashboard.completion_support_btn")
+                            font.pixelSize: 11
+                            font.bold: true
+                            color: "#F472B6"
+                        }
+                        onClicked: Qt.openUrlExternally("https://www.patreon.com/cw/LordOfTurk")
+                    }
+                }
+
+                CheckBox {
+                    id: hideSupport
+                    text: root.t("dashboard.completion_support_hide")
+                    font.pixelSize: 11
+                    padding: 0
+                    onToggled: { if (appBackend) appBackend.setSetting("hide_support_prompt", checked); }
                 }
             }
         }

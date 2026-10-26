@@ -36,8 +36,12 @@ ScrollView {
         // Page Header (DESIGN.md §4: 22px SemiBold textPrimary, 13px textSecondary)
         Column {
             spacing: 6
-            Text {
-                text: "🛠️ " + root.t("toolbox.title")
+            IconLabel {
+                glyph: Icons.wrench
+                iconColor: Theme.accentSolid
+                spacing: 10
+                alignment: Qt.AlignLeft
+                text: root.t("toolbox.title")
                 font.pixelSize: 22
                 font.bold: true
                 color: Theme.textPrimary
@@ -89,8 +93,12 @@ ScrollView {
                     width: parent.width
                     spacing: 8
 
-                    Text {
-                        text: "🔡 " + root.t("toolbox.font_card_title")
+                    IconLabel {
+                        glyph: Icons.type
+                        iconColor: Theme.accentSolid
+                        spacing: 8
+                        alignment: Qt.AlignLeft
+                        text: root.t("toolbox.font_card_title")
                         font.pixelSize: 15
                         font.bold: true
                         color: Theme.textPrimary
@@ -534,42 +542,6 @@ ScrollView {
                 RowLayout {
                     spacing: 12
 
-                    // Install BepInEx Button (DESIGN.md §3.3: height 38px, radius 6px)
-                    Button {
-                        id: btnInstallBep
-                        implicitHeight: Theme.heightSecondary
-                        topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
-                        enabled: Boolean(appBackend && appBackend.gamePath && !appBackend.isBusy)
-                        scale: down ? 0.98 : 1.0
-
-                        background: Rectangle {
-                            radius: Theme.radiusControl
-                            color: btnInstallBep.enabled ? (btnInstallBep.hovered ? Theme.accentHover : Theme.accentSolid) : (Theme.isDark ? "#232A3B" : "#CBD5E1")
-                            border.width: 0
-                            opacity: btnInstallBep.enabled ? 1.0 : 0.5
-                        }
-
-                        contentItem: RowLayout {
-                            spacing: 8
-                            anchors.centerIn: parent
-                            Icon {
-                                glyph: Icons.packageBox
-                                size: 14
-                                color: btnInstallBep.enabled ? Theme.accentContrastText : Theme.textMuted
-                            }
-                            Text {
-                                text: root.tBtn("toolbox.install_hooks_btn")
-                                font.pixelSize: 13
-                                font.bold: true
-                                color: btnInstallBep.enabled ? Theme.accentContrastText : Theme.textMuted
-                            }
-                        }
-
-                        onClicked: {
-                            if (appBackend) appBackend.installHooks();
-                        }
-                    }
-
                     // Uninstall BepInEx Button (Destructive - DESIGN.md §3.3)
                     Button {
                         id: btnUninstallBep
@@ -633,8 +605,12 @@ ScrollView {
                     width: parent.width
                     spacing: 8
 
-                    Text {
-                        text: "⛏️ " + root.t("toolbox.harvester_card_title")
+                    IconLabel {
+                        glyph: Icons.scanSearch
+                        iconColor: Theme.accentSolid
+                        spacing: 8
+                        alignment: Qt.AlignLeft
+                        text: root.t("toolbox.harvester_card_title")
                         font.pixelSize: 15
                         font.bold: true
                         color: Theme.textPrimary

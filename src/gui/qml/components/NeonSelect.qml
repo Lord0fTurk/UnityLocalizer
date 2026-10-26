@@ -175,7 +175,7 @@ Rectangle {
                     anchors.rightMargin: 10
                     spacing: 8
 
-                    Text { text: "🔍"; font.pixelSize: 12; color: Theme.textMuted }
+                    Icon { glyph: Icons.search; size: 14; color: Theme.textMuted }
 
                     TextInput {
                         id: searchField

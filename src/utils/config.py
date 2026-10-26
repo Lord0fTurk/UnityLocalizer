@@ -20,8 +20,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "patch_loose_files": False,
     "bilingual_mode": False,
     "bilingual_template": "{target}\n({source})",
-    # XUnity OverrideFontTextMeshPro: system font for IL2CPP games whose fallback bundle fails ("" = off)
+    # XUnity OverrideFontTextMeshPro: system font name ("" = choose automatically)
     "tmp_system_font": "",
+    # Support prompt in the completion dialog: shown from the 3rd finished run unless dismissed
+    "completed_runs": 0,
+    "hide_support_prompt": False,
     # uGUI / TMP Font Manager options
     "custom_font_path": "",
     "override_font_ugui": "",

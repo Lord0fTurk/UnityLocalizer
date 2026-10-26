@@ -194,6 +194,17 @@ find "$PATCH_ROOT" -type f | while IFS= read -r src; do
     cp "$src" "$dst"
 done
 
+if [ -f "$TARGET_DIR/run_bepinex.sh" ]; then
+    chmod +x "$TARGET_DIR/run_bepinex.sh"
+    echo ""
+    echo "======================================================="
+    echo " [INFO] Native Linux game:"
+    echo " Start the game through BepInEx. In Steam open Game Properties >"
+    echo " Launch Options and add:  ./run_bepinex.sh %command%"
+    echo " Without Steam, run ./run_bepinex.sh in the game folder."
+    echo "======================================================="
+fi
+
 echo ""
 echo "[SUCCESS] Patch installed successfully! 100% offline."
 echo ""

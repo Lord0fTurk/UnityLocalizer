@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Anti-mod warning**: some games ship code that deletes BepInEx at start (Project XX Queen Demo has `BepInExRemover` / `CheckAndRemoveBepInEx`: the folders vanish about 10 seconds after launch and the game quits, so no translation can appear). The pipeline now reads class and method names from `Assembly-CSharp*.dll` / `global-metadata.dat` before translating and shows a Dashboard warning in 12 languages. Detection is read-only; the tool does not work around the game's protection.
+
+### Documentation
+- README: the install step no longer mentions the removed "Install Hooks" button (the runtime is set up when translation starts), the font FAQ describes the IL2CPP fallback font, and native Linux is marked experimental.
+
+### Changed
+- **Support button**: the sidebar "Patreon Destek" button is now "Support the developer" (12 languages) with a "Patreon" sub-line, warm pink instead of error red and a slow heartbeat on the heart icon.
+- **Support prompt in the completion dialog**: a small support row with a "Don't show again" checkbox appears from the 3rd finished run (`completed_runs`, `hide_support_prompt`); the dialog is slightly wider so action labels are cut less.
+
+### Fixed
+- **Texts with a stored `\n` stayed untranslated**: some games keep line breaks as the two characters backslash + n and convert them just before drawing, so XUnity saw a real line break and never matched the dictionary key. Every such entry now also gets a real-line-break variant (143 entries in Project_Dungeon, verified in game).
+- **IL2CPP games showed no translation at all**: `AutoTranslatorConfig.ini` was written with `ForceMonoModHooks=True`. XUnity's IL2CPP text hooks exist only as Harmony hooks, so every hook failed ("Harmony is not supported in this runtime") and nothing was translated. The setting is now forced to `False` (existing installs are corrected on the next run); extra `behaviour` keys no longer replace the other forced Behaviour keys.
+- **No TextMeshPro font for Turkish and other Latin-extended text**: the Settings default (empty system font) was passed as `""`, which switched the font override off instead of choosing one automatically, so IL2CPP games kept a font without `ç ğ ı ş ö ü`. Empty now means automatic. On IL2CPP the font is added through XUnity's `FallbackFontTextMeshPro` (extra glyphs only), never `OverrideFontTextMeshPro`: the override crashed a Unity 6000 game (access violation in `TMP_Text.set_fontSharedMaterial`), and a value written by an older run is cleared. Verified in Project_Dungeon (`ı ğ ç ö` render, no crash).
+- **App icon visibility**: `icon.png`/`icon.ico` were rebuilt so the controller glyph fills the badge (it used to sit small in a wide empty margin and disappeared at taskbar and title-bar sizes); the sidebar and About logos render at 128 px source size.
+- **Doubled icons**: the `export_patch_btn` and `harvest_assets_btn` strings carried a 📦 emoji although their buttons already draw a Lucide icon; the `quick_rtl_*` and `quick_lang_unsupported` strings carried ⚠/↔ prefixes. The prefixes are gone from all 12 locales and the Dashboard draws the warning icons itself.
+- **Emoji in the UI**: page headers, search fields, toasts, the Editor error row and the Settings buttons used system emoji (colour-inconsistent on Windows, missing on Linux/Steam Deck); they now use the bundled Lucide icon font.
+
 ## [0.2.0] - 2026-10-24
 
 ### Added

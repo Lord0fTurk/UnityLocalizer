@@ -10,7 +10,9 @@ import struct
 from pathlib import Path
 from typing import Any
 
+from src.core.cjk import is_single_cjk
 from src.core.harvesters.bundle_locator import find_serialized_sources
+from src.core.harvesters.harvest_stats import FileStat, HarvestStats
 from src.core.harvesters.text_filter import looks_technical
 from src.core.harvesters.typetree_text import collect_display_strings, has_user_fields
 from src.core.parsers.text_formats import sniff_and_extract
@@ -59,7 +61,7 @@ class AssetHarvester:
     def is_translatable(cls, text: str) -> bool:
         """Filter out technical tokens, input bindings, asset paths, and engine classes."""
         stripped = text.strip()
-        if len(stripped) < 2 or len(stripped) > 2500 or "\x00" in stripped or _SURROGATE_RE.search(stripped):
+        if (len(stripped) < 2 and not is_single_cjk(stripped)) or len(stripped) > 2500 or "\x00" in stripped or _SURROGATE_RE.search(stripped):
             return False
         if not all(c.isprintable() or c.isspace() or c in _ALLOWED_FORMAT_CHARS for c in stripped):
             return False
@@ -73,23 +75,25 @@ class AssetHarvester:
         return not _NUMBERED_OBJECT_RE.match(stripped)
 
     @classmethod
-    def extract_strings_from_object(cls, obj: Any, source_lang: str = "en") -> list[str]:
+    def extract_strings_from_object(
+        cls, obj: Any, source_lang: str = "en", file_stat: FileStat | None = None, stats: HarvestStats | None = None
+    ) -> list[str]:
         """Extract translatable strings from a TextAsset, TextMesh or MonoBehaviour object."""
         type_name = obj.type.name
         try:
             if type_name == "TextAsset":
-                return cls._from_text_asset(obj)
+                return cls._from_text_asset(obj, source_lang, stats)
             if type_name == "TextMesh":
                 text = _first_attr(obj.read(), "m_Text", "text")
                 return [text.strip()] if isinstance(text, str) and cls.is_translatable(text) else []
             if type_name == "MonoBehaviour":
-                return cls._from_monobehaviour(obj, source_lang)
+                return cls._from_monobehaviour(obj, source_lang, file_stat, stats)
         except (ValueError, KeyError, EOFError, AttributeError, TypeError) as exc:
             logger.debug("Failed extracting strings from object %s: %s", getattr(obj, "path_id", "?"), exc)
         return []
 
     @classmethod
-    def _from_text_asset(cls, obj: Any) -> list[str]:
+    def _from_text_asset(cls, obj: Any, source_lang: str = "en", stats: HarvestStats | None = None) -> list[str]:
         """Split a TextAsset into individual strings by sniffing its content format."""
         raw = _first_attr(obj.read(), "m_Script", "script")
         if isinstance(raw, bytes):
@@ -99,17 +103,21 @@ class AssetHarvester:
                 return []  # binary .bytes payload (serialized data, not text)
         if not isinstance(raw, str) or _SURROGATE_RE.search(raw):
             return []
-        return [s.strip() for s in sniff_and_extract(raw) if cls.is_translatable(s)]
+        return [s.strip() for s in sniff_and_extract(raw, source_lang, stats) if cls.is_translatable(s)]
 
     @classmethod
-    def _from_monobehaviour(cls, obj: Any, source_lang: str) -> list[str]:
+    def _from_monobehaviour(
+        cls, obj: Any, source_lang: str, file_stat: FileStat | None = None, stats: HarvestStats | None = None
+    ) -> list[str]:
         """Prefer field-aware TypeTree extraction; fall back to raw length-prefixed scanning."""
         tree = cls._read_tree(obj)
         if tree is None:
+            if file_stat is not None:
+                file_stat.raw_scanned += 1
             # The object's own name (ScriptableObject asset names such as "Item_Sword") is not text.
             name = _object_name(obj)
             return [s for s in cls._scan_length_prefixed(obj.get_raw_data()) if s != name]
-        strings = collect_display_strings(tree, source_lang)
+        strings = collect_display_strings(tree, source_lang, stats)
         return [s.strip() for s in strings if cls.is_translatable(s)]
 
     @staticmethod
@@ -161,12 +169,17 @@ class AssetHarvester:
 
     @classmethod
     def harvest_asset_file(
-        cls, asset_path: Path | str, source_lang: str = "en", typetree_generator: Any | None = None
+        cls,
+        asset_path: Path | str,
+        source_lang: str = "en",
+        typetree_generator: Any | None = None,
+        stats: HarvestStats | None = None,
     ) -> list[str]:
         """Extract translatable strings from a single serialized file or bundle."""
         path = Path(asset_path)
         if not path.is_file():
             return []
+        file_stat = FileStat(path.name)
 
         import UnityPy
 
@@ -177,12 +190,16 @@ class AssetHarvester:
                 env.typetree_generator = typetree_generator
             for obj in env.objects:
                 if obj.type.name in HARVESTED_TYPES:
-                    strings.update(cls.extract_strings_from_object(obj, source_lang))
+                    strings.update(cls.extract_strings_from_object(obj, source_lang, file_stat, stats))
         except Exception as exc:  # UnityPy raises heterogeneous errors on unknown layouts
             logger.warning("Failed to harvest from %s: %s", path.name, exc)
+            file_stat.failed = True
         finally:
             env = None
             gc.collect()
+        file_stat.strings = len(strings)
+        if stats is not None:
+            stats.files.append(file_stat)
         logger.debug("Harvested %d unique strings from %s", len(strings), path.name)
         return sorted(strings)
 
@@ -194,6 +211,7 @@ class AssetHarvester:
         typetree_generator: Any | None = None,
         progress: ProgressCallback | None = None,
         cancel: CancelToken | None = None,
+        stats: HarvestStats | None = None,
     ) -> list[str]:
         """Crawl scenes, shared assets, data.unity3d and bundles; return unique strings.
 
@@ -205,6 +223,6 @@ class AssetHarvester:
         for index, path in enumerate(files, start=1):
             checkpoint(cancel)
             emit(progress, "pipeline.harvest_asset_file", index, len(files), name=path.name)
-            total_strings.update(cls.harvest_asset_file(path, source_lang, typetree_generator))
+            total_strings.update(cls.harvest_asset_file(path, source_lang, typetree_generator, stats))
         logger.info("Deep asset harvest completed: %d unique strings", len(total_strings))
         return sorted(total_strings)

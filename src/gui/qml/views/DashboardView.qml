@@ -605,24 +605,105 @@ ScrollView {
                     }
                 }
 
-                Text {
+                RowLayout {
                     Layout.fillWidth: true
                     visible: Boolean(appBackend && !appBackend.languagesSupportedByEngine)
-                    wrapMode: Text.WordWrap
-                    text: root.t("dashboard.quick_lang_unsupported")
-                    font.pixelSize: 11
-                    color: "#F59E0B"
+                    spacing: 6
+                    Icon { glyph: Icons.triangleAlert; size: 14; color: "#F59E0B"; Layout.alignment: Qt.AlignTop }
+                    Text {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        text: root.t("dashboard.quick_lang_unsupported")
+                        font.pixelSize: 11
+                        color: "#F59E0B"
+                    }
                 }
 
-                Text {
+                RowLayout {
                     Layout.fillWidth: true
                     visible: Boolean(appBackend && appBackend.targetIsRtl)
-                    wrapMode: Text.WordWrap
-                    text: (appBackend && appBackend.rtlStaticShaping)
-                          ? root.t("dashboard.quick_rtl_on")
-                          : root.t("dashboard.quick_rtl_off")
-                    font.pixelSize: 11
-                    color: (appBackend && appBackend.rtlStaticShaping) ? clrAccentCyan : "#F59E0B"
+                    spacing: 6
+                    readonly property bool shaped: Boolean(appBackend && appBackend.rtlStaticShaping)
+                    Icon {
+                        glyph: parent.shaped ? Icons.languages : Icons.triangleAlert
+                        size: 14
+                        color: parent.shaped ? clrAccentCyan : "#F59E0B"
+                        Layout.alignment: Qt.AlignTop
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        text: parent.shaped ? root.t("dashboard.quick_rtl_on") : root.t("dashboard.quick_rtl_off")
+                        font.pixelSize: 11
+                        color: parent.shaped ? clrAccentCyan : "#F59E0B"
+                    }
+                }
+            }
+        }
+
+        // Notices: warnings and results that must not hide in the console log
+        Column {
+            id: noticesColumn
+            width: parent.width
+            spacing: 8
+            visible: Boolean(appBackend && appBackend.notices.length > 0)
+
+            RowLayout {
+                width: parent.width
+                Text {
+                    text: root.t("dashboard.notices_title")
+                    font.pixelSize: 13
+                    font.bold: true
+                    color: Theme.textPrimary
+                }
+                Item { Layout.fillWidth: true }
+                Button {
+                    id: btnDismissNotices
+                    flat: true
+                    implicitHeight: 24
+                    topInset: 0; bottomInset: 0; padding: 4
+                    contentItem: Text {
+                        text: root.t("dashboard.notices_dismiss")
+                        font.pixelSize: 12
+                        color: btnDismissNotices.hovered ? Theme.textPrimary : Theme.textSecondary
+                    }
+                    background: Item {}
+                    onClicked: {
+                        if (appBackend) appBackend.dismissNotices();
+                    }
+                }
+            }
+
+            Repeater {
+                model: appBackend ? appBackend.notices : []
+                delegate: Rectangle {
+                    width: noticesColumn.width
+                    implicitHeight: noticeText.implicitHeight + 20
+                    radius: Theme.radiusControl
+                    color: modelData.level === "error" ? Theme.statusDangerSubtle
+                         : modelData.level === "success" ? Theme.statusSuccessSubtle
+                         : modelData.level === "info" ? Theme.surfaceControl
+                         : Theme.statusWarningSubtle
+                    border.width: 1
+                    border.color: modelData.level === "error" ? Theme.statusDangerBorder
+                                : modelData.level === "success" ? Theme.statusSuccessBorder
+                                : modelData.level === "info" ? Theme.borderControl
+                                : Theme.statusWarningBorder
+
+                    Text {
+                        id: noticeText
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.margins: 14
+                        text: modelData.text
+                        font.pixelSize: 12
+                        wrapMode: Text.WordWrap
+                        color: modelData.level === "error" ? Theme.statusDanger
+                             : modelData.level === "success" ? Theme.statusSuccess
+                             : modelData.level === "info" ? Theme.textSecondary
+                             : Theme.statusWarning
+                    }
                 }
             }
         }
@@ -692,60 +773,6 @@ ScrollView {
                         font.pixelSize: 12
                         color: clrTxt2
                         elide: Text.ElideRight
-                    }
-                }
-
-                // Quick Hook Install Prompt if game selected but has no BepInEx
-                Rectangle {
-                    width: parent.width
-                    height: 44
-                    radius: Theme.radiusControl
-                    color: Theme.statusWarningSubtle
-                    border.color: Theme.statusWarningBorder
-                    border.width: 1
-                    visible: Boolean(appBackend && appBackend.gamePath && !appBackend.hasBepInEx && !appBackend.isBusy)
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 14
-                        anchors.rightMargin: 12
-                        spacing: 10
-
-                        Icon {
-                            glyph: Icons.triangleAlert
-                            size: 16
-                            color: Theme.statusWarning
-                        }
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: root.t("dashboard.quick_install_hint")
-                            font.pixelSize: 12
-                            color: Theme.statusWarning
-                            elide: Text.ElideRight
-                        }
-
-                        Button {
-                            id: btnQuickHookInstall
-                            implicitHeight: 32
-                            topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
-                            scale: down ? 0.98 : 1.0
-                            background: Rectangle {
-                                radius: Theme.radiusControl
-                                color: btnQuickHookInstall.hovered ? "#FBBF24" : Theme.statusWarning
-                            }
-                            contentItem: Text {
-                                text: root.t("dashboard.quick_install_hooks")
-                                font.pixelSize: 12
-                                font.bold: true
-                                color: "#090602"
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
-                            }
-                            onClicked: {
-                                if (appBackend) appBackend.installHooks();
-                            }
-                        }
                     }
                 }
 
