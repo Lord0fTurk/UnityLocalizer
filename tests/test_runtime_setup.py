@@ -81,7 +81,7 @@ def test_failed_download_raises_readable_reason(
 
 def test_install_writes_marker_and_uninstall_removes_it(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(installer_module, "download_cached", lambda *a, **k: tmp_path / "x.zip")
-    monkeypatch.setattr(HookInstaller, "_safe_extract_zip", classmethod(lambda cls, z, d: None))
+    monkeypatch.setattr(HookInstaller, "_safe_extract_zip", classmethod(lambda cls, z, d: ["winhttp.dll", "BepInEx"]))
     assert HookInstaller.install(tmp_path, is_64bit=False, is_il2cpp=False) is True
     assert read_runtime_marker(tmp_path)["package"] == "mono_x86"
     HookInstaller.uninstall(tmp_path)

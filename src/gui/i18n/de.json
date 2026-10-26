@@ -114,7 +114,9 @@
     "linux_native_hint": "Natives Linux-Spiel: Starten Sie es über BepInEx. Fügen Sie in Steam > Eigenschaften > Startoptionen hinzu: ./run_bepinex.sh %command%  (ohne Steam ./run_bepinex.sh im Spielordner ausführen).",
     "completion_support_text": "Wenn dir dieses Tool Zeit gespart hat, kannst du den Entwickler unterstützen.",
     "completion_support_btn": "Unterstützen",
-    "completion_support_hide": "Nicht mehr anzeigen"
+    "completion_support_hide": "Nicht mehr anzeigen",
+    "launch_windows_game_on_linux": "Dies ist ein Windows-Spiel und lässt sich unter Linux nicht direkt starten. Starten Sie es über Steam mit Proton und fügen Sie die Startoption WINEDLLOVERRIDES=\"winhttp=n,b\" %command% hinzu.",
+    "launch_not_executable": "Die Spieldatei ist nicht ausführbar. Machen Sie sie ausführbar (chmod +x) oder starten Sie das Spiel über Steam."
   },
   "toolbox": {
     "title": "Unity-Werkzeuge & Hooks",
@@ -409,7 +411,27 @@
     "issue_missing": "Fehlende Tags/Platzhalter: {tokens}",
     "issue_unexpected": "Unerwartete Tags/Platzhalter: {tokens}",
     "write_error": "die Wörterbuchdatei konnte nicht geschrieben werden",
-    "status_repaired": "Automatisch repariert"
+    "status_repaired": "Automatisch repariert",
+    "filter_modified": "Geändert",
+    "filter_warnings": "Mit Problemen",
+    "matches": "{count} Treffer",
+    "page_label": "Seite {page} / {pages}",
+    "replace_btn": "Suchen & Ersetzen",
+    "replace_title": "In Übersetzungen ersetzen",
+    "replace_scope": "Gilt für die {count} Zeilen, die zum aktuellen Filter und zur Suche passen.",
+    "find_label": "Suchen",
+    "replace_with": "Ersetzen durch",
+    "match_case": "Groß-/Kleinschreibung beachten",
+    "replace_note": "Tags und Platzhalter wie {0} oder <b> werden nie geändert.",
+    "replace_cancel": "Abbrechen",
+    "replace_apply": "Alle ersetzen",
+    "replaced": "{count} Zeilen geändert.",
+    "select_hint": "Wählen Sie eine Zeile zum Bearbeiten.",
+    "row_label": "Zeile {n}",
+    "modified_marker": "Geändert",
+    "revert_btn": "Zurücksetzen",
+    "apply_next_btn": "Übernehmen & weiter",
+    "tokens_label": "Beibehalten:"
   },
   "engines": {
     "google": "Google Translate (kostenlos, ohne Schlüssel)",

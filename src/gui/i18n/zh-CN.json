@@ -114,7 +114,9 @@
     "linux_native_hint": "原生 Linux 游戏：请通过 BepInEx 启动。在 Steam > 属性 > 启动选项中添加：./run_bepinex.sh %command%（不用 Steam 时，在游戏文件夹中运行 ./run_bepinex.sh）。",
     "completion_support_text": "如果这个工具帮你节省了时间，可以支持一下开发者。",
     "completion_support_btn": "支持",
-    "completion_support_hide": "不再显示"
+    "completion_support_hide": "不再显示",
+    "launch_windows_game_on_linux": "这是 Windows 游戏，无法在 Linux 上直接启动。请通过 Steam 的 Proton 启动，并添加启动选项 WINEDLLOVERRIDES=\"winhttp=n,b\" %command%。",
+    "launch_not_executable": "游戏文件不可执行。请将其设为可执行（chmod +x），或从 Steam 启动游戏。"
   },
   "toolbox": {
     "title": "Unity 工具箱与 Hook 管理",
@@ -409,7 +411,27 @@
     "issue_missing": "缺少标签/占位符：{tokens}",
     "issue_unexpected": "多余的标签/占位符：{tokens}",
     "write_error": "无法写入词典文件",
-    "status_repaired": "已自动修复"
+    "status_repaired": "已自动修复",
+    "filter_modified": "已更改",
+    "filter_warnings": "有问题",
+    "matches": "{count} 条匹配",
+    "page_label": "第 {page} / {pages} 页",
+    "replace_btn": "查找和替换",
+    "replace_title": "在译文中替换",
+    "replace_scope": "应用于符合当前筛选和搜索的 {count} 行。",
+    "find_label": "查找",
+    "replace_with": "替换为",
+    "match_case": "区分大小写",
+    "replace_note": "诸如 {0} 或 <b> 的标签和占位符不会被更改。",
+    "replace_cancel": "取消",
+    "replace_apply": "全部替换",
+    "replaced": "已更改 {count} 行。",
+    "select_hint": "请选择一行进行编辑。",
+    "row_label": "第 {n} 行",
+    "modified_marker": "已更改",
+    "revert_btn": "还原",
+    "apply_next_btn": "应用并下一条",
+    "tokens_label": "需保留："
   },
   "engines": {
     "google": "Google 翻译（免费，无需密钥）",

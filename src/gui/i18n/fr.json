@@ -114,7 +114,9 @@
     "linux_native_hint": "Jeu Linux natif : lancez-le via BepInEx. Dans Steam > Propriétés > Options de lancement, ajoutez : ./run_bepinex.sh %command%  (sans Steam, exécutez ./run_bepinex.sh dans le dossier du jeu).",
     "completion_support_text": "Si cet outil vous a fait gagner du temps, vous pouvez soutenir son développeur.",
     "completion_support_btn": "Soutenir",
-    "completion_support_hide": "Ne plus afficher"
+    "completion_support_hide": "Ne plus afficher",
+    "launch_windows_game_on_linux": "C'est un jeu Windows qui ne peut pas être lancé directement sous Linux. Lancez-le depuis Steam avec Proton et ajoutez l'option de lancement WINEDLLOVERRIDES=\"winhttp=n,b\" %command%.",
+    "launch_not_executable": "Le fichier du jeu n'est pas exécutable. Rendez-le exécutable (chmod +x) ou lancez le jeu depuis Steam."
   },
   "toolbox": {
     "title": "Boîte à Outils Unity & Hooks",
@@ -409,7 +411,27 @@
     "issue_missing": "Balises/espaces réservés manquants : {tokens}",
     "issue_unexpected": "Balises/espaces réservés inattendus : {tokens}",
     "write_error": "le fichier dictionnaire n'a pas pu être écrit",
-    "status_repaired": "Réparée automatiquement"
+    "status_repaired": "Réparée automatiquement",
+    "filter_modified": "Modifié",
+    "filter_warnings": "Avec problèmes",
+    "matches": "{count} résultats",
+    "page_label": "Page {page} / {pages}",
+    "replace_btn": "Rechercher et remplacer",
+    "replace_title": "Remplacer dans les traductions",
+    "replace_scope": "S'applique aux {count} lignes correspondant au filtre et à la recherche actuels.",
+    "find_label": "Rechercher",
+    "replace_with": "Remplacer par",
+    "match_case": "Respecter la casse",
+    "replace_note": "Les balises et espaces réservés comme {0} ou <b> ne sont jamais modifiés.",
+    "replace_cancel": "Annuler",
+    "replace_apply": "Tout remplacer",
+    "replaced": "{count} lignes modifiées.",
+    "select_hint": "Sélectionnez une ligne à modifier.",
+    "row_label": "Ligne {n}",
+    "modified_marker": "Modifié",
+    "revert_btn": "Rétablir",
+    "apply_next_btn": "Appliquer et suivante",
+    "tokens_label": "À conserver :"
   },
   "engines": {
     "google": "Google Translate (gratuit, sans clé)",

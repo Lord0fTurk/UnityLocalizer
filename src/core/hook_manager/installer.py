@@ -28,6 +28,11 @@ from src.utils.downloader import IntegrityError, RemoteFile, download_cached
 
 logger = logging.getLogger(__name__)
 
+# Files of a BepInEx archive that are not extracted (the game may own a file of that name).
+_SKIPPED_ARCHIVE_FILES = frozenset({"changelog.txt"})
+# Files that identify a folder as the .NET runtime BepInEx 6 (IL2CPP) bundles.
+_BUNDLED_RUNTIME_MARKERS = ("libcoreclr.so", "libcoreclr.dll", "System.Private.CoreLib.dll")
+
 _BEPINEX_RELEASES = "https://github.com/BepInEx/BepInEx/releases/download"
 _BEPINEX_BE_BUILDS = "https://builds.bepinex.dev/projects/bepinex_be"
 _XUNITY_RELEASES = "https://github.com/bbepis/XUnity.AutoTranslator/releases/download"
@@ -176,6 +181,7 @@ class HookInstaller:
         """Cleanly remove BepInEx injection DLLs, restoring game to vanilla state."""
         root = Path(game_dir)
         success = True
+        owned = cls._owned_entries(root)
         remove_runtime_marker(root)
 
         for dll in PROXY_DLLS:
@@ -187,6 +193,9 @@ class HookInstaller:
                 except Exception as exc:
                     logger.error("Failed to delete %s: %s", path, exc)
                     success = False
+
+        for name in owned:
+            success &= cls._remove_owned(root / name)
 
         if full_cleanup:
             bep_dir = root / "BepInEx"
@@ -200,6 +209,39 @@ class HookInstaller:
 
         return success
 
+    @staticmethod
+    def _owned_entries(root: Path) -> list[str]:
+        """Top-level names the installer added to the game root.
+
+        Read from the install marker. Older installs have no list; for those only the
+        Doorstop version file and the bundled .NET runtime folder are recognised, and only
+        when they really are BepInEx's (a game never ships ``.doorstop_version``).
+        """
+        marker = read_runtime_marker(root)
+        names = [n for n in marker.get("owned", []) if isinstance(n, str)]
+        if "owned" not in marker:
+            names = [".doorstop_version"]
+            runtime = root / "dotnet"
+            if any((runtime / lib).is_file() for lib in _BUNDLED_RUNTIME_MARKERS):
+                names.append("dotnet")
+        return [n for n in names if n and n not in {".", "..", "BepInEx"} and "/" not in n and "\\" not in n]
+
+    @staticmethod
+    def _remove_owned(path: Path) -> bool:
+        """Delete one file or folder the installer added; False when it could not be removed."""
+        try:
+            if path.is_symlink() or path.is_file():
+                path.unlink()
+            elif path.is_dir():
+                shutil.rmtree(path)
+            else:
+                return True
+            logger.info("Removed %s", path.name)
+            return True
+        except OSError as exc:
+            logger.error("Failed to remove %s: %s", path, exc)
+            return False
+
     @classmethod
     def prepare_directories(cls, game_dir: Path | str, target_lang: str = "tr") -> Path:
         """Ensure standard BepInEx Translation directory structure exists."""
@@ -210,15 +252,24 @@ class HookInstaller:
         return trans_dir
 
     @classmethod
-    def _safe_extract_zip(cls, zip_path: Path, dest_dir: Path) -> None:
-        """Extract zip archive with Zip Slip (path traversal) security check."""
+    def _safe_extract_zip(cls, zip_path: Path, dest_dir: Path) -> list[str]:
+        """Extract a zip with a Zip Slip (path traversal) check; returns its top-level names.
+
+        BepInEx's own ``changelog.txt`` is skipped: it is of no use here and would replace a
+        file of the same name that belongs to the game.
+        """
         dest_resolved = dest_dir.resolve()
+        top_level: set[str] = set()
         with zipfile.ZipFile(zip_path, "r") as zf:
-            for member in zf.infolist():
+            members = [m for m in zf.infolist() if m.filename not in _SKIPPED_ARCHIVE_FILES]
+            for member in members:
                 member_path = (dest_dir / member.filename).resolve()
                 if not member_path.is_relative_to(dest_resolved):
                     raise ValueError(f"Zip slip attempt detected for file: {member.filename}")
-            zf.extractall(dest_dir)
+            for member in members:
+                zf.extract(member, dest_dir)
+                top_level.add(member.filename.split("/")[0])
+        return sorted(top_level)
 
     @staticmethod
     def _packages(target: RuntimeTarget) -> tuple[RemoteFile, RemoteFile]:
@@ -315,10 +366,14 @@ class HookInstaller:
         if not root.is_dir():
             raise NotADirectoryError(f"Target game directory not found: {root}")
         try:
+            existing = {item.name for item in root.iterdir()}
+            added: set[str] = set()
             for package in cls._packages(target):
                 archive = download_cached(package, progress=progress_callback)
                 emit(progress_callback, "installer.extracting", name=package.filename)
-                cls._safe_extract_zip(archive, root)
+                added.update(cls._safe_extract_zip(archive, root))
+            # The BepInEx folder holds the user's translations and stays on a normal uninstall.
+            owned = sorted(name for name in added if name not in existing and name != "BepInEx")
 
             emit(progress_callback, "installer.configuring")
             if target.linux:
@@ -326,10 +381,11 @@ class HookInstaller:
             cls.prepare_directories(root, target_lang=target_lang)
             font_bundle = FontProvisioner.provision(root, unity_version, progress_callback) if unity_version else None
             if not FontBootstrap.inject_font(
-                root, target_lang=target_lang, source_lang=source_lang, preferred_bundle=font_bundle
+                root, target_lang=target_lang, source_lang=source_lang, preferred_bundle=font_bundle,
+                is_il2cpp=target.is_il2cpp, linux=target.linux,
             ):
                 raise OSError("Failed to write AutoTranslatorConfig.ini")
-            write_runtime_marker(root, target.package_key, unity_version)
+            write_runtime_marker(root, target.package_key, unity_version, owned)
         except RuntimeSetupError:
             raise
         except (OSError, ValueError, zipfile.BadZipFile) as exc:

@@ -114,7 +114,9 @@
     "linux_native_hint": "Gioco Linux nativo: avvialo tramite BepInEx. In Steam > Proprietà > Opzioni di avvio aggiungi: ./run_bepinex.sh %command%  (senza Steam esegui ./run_bepinex.sh nella cartella del gioco).",
     "completion_support_text": "Se questo strumento ti ha fatto risparmiare tempo, puoi sostenere lo sviluppatore.",
     "completion_support_btn": "Sostieni",
-    "completion_support_hide": "Non mostrare più"
+    "completion_support_hide": "Non mostrare più",
+    "launch_windows_game_on_linux": "Questo è un gioco Windows e non può essere avviato direttamente su Linux. Avvialo da Steam con Proton e aggiungi l'opzione di avvio WINEDLLOVERRIDES=\"winhttp=n,b\" %command%.",
+    "launch_not_executable": "Il file del gioco non è eseguibile. Rendilo eseguibile (chmod +x) o avvia il gioco da Steam."
   },
   "toolbox": {
     "title": "Strumenti Unity & Hook",
@@ -409,7 +411,27 @@
     "issue_missing": "Tag/segnaposto mancanti: {tokens}",
     "issue_unexpected": "Tag/segnaposto inattesi: {tokens}",
     "write_error": "impossibile scrivere il file dizionario",
-    "status_repaired": "Riparata automaticamente"
+    "status_repaired": "Riparata automaticamente",
+    "filter_modified": "Modificato",
+    "filter_warnings": "Con problemi",
+    "matches": "{count} corrispondenze",
+    "page_label": "Pagina {page} / {pages}",
+    "replace_btn": "Trova e sostituisci",
+    "replace_title": "Sostituisci nelle traduzioni",
+    "replace_scope": "Si applica alle {count} righe che corrispondono al filtro e alla ricerca correnti.",
+    "find_label": "Trova",
+    "replace_with": "Sostituisci con",
+    "match_case": "Maiuscole/minuscole",
+    "replace_note": "Tag e segnaposto come {0} o <b> non vengono mai modificati.",
+    "replace_cancel": "Annulla",
+    "replace_apply": "Sostituisci tutto",
+    "replaced": "{count} righe modificate.",
+    "select_hint": "Seleziona una riga da modificare.",
+    "row_label": "Riga {n}",
+    "modified_marker": "Modificato",
+    "revert_btn": "Ripristina",
+    "apply_next_btn": "Applica e avanti",
+    "tokens_label": "Da mantenere:"
   },
   "engines": {
     "google": "Google Translate (gratuito, senza chiave)",

@@ -21,6 +21,7 @@ from pathlib import Path
 from src.core.hook_layout import (
     AUTOTRANSLATOR_CONFIG,
     IL2CPP_RUNTIME_MARKER,
+    LINUX_LAUNCH_SCRIPT,
     PROXY_DLLS,
     UNITY_BASE_LIBS_DIR,
     XUNITY_PLUGIN_DIRS,
@@ -118,7 +119,8 @@ class PatchExporter:
         cls._copy_hook_payload(root, patch_dir, safe_lang)
         is_il2cpp = (root / IL2CPP_RUNTIME_MARKER).is_file()
         FontBootstrap.inject_font(
-            patch_dir, target_lang=safe_lang, source_lang=source_lang, make_backup=False, is_il2cpp=is_il2cpp
+            patch_dir, target_lang=safe_lang, source_lang=source_lang, make_backup=False, is_il2cpp=is_il2cpp,
+            linux=(root / LINUX_LAUNCH_SCRIPT).is_file(),
         )
         write_scripts(patch_dir, safe_lang)
         write_readme(patch_dir, game_name, safe_lang)

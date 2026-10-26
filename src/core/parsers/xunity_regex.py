@@ -23,8 +23,11 @@ from collections.abc import Iterable
 logger = logging.getLogger(__name__)
 
 # Upper bound of regex entries per dictionary: XUnity compiles every regex at startup
-# and tries them on each text without a direct match, so thousands would cost load time.
-MAX_REGEX_ENTRIES = 1500
+# and tries them on each text without a direct match. Measured on .NET 10 with the
+# Project_Dungeon patterns, 5000 compiled regexes build in ~0.3 s; a Unity 6 IL2CPP game
+# with 3000 entries started and translated as before. The old limit of 1500 dropped
+# 1272 of 2474 real UI templates there.
+MAX_REGEX_ENTRIES = 3000
 
 # Runtime-filled placeholders (string.Format items, named Smart String / I2 / Ink
 # parameters, printf) plus the escaped braces string.Format turns into single ones.
@@ -160,22 +163,50 @@ def build_choice_prefix_entry(source: str, translation: str) -> tuple[str, str] 
     return f'r:"{pattern}"', f'"{replacement}"'
 
 
+# Library and engine diagnostics ("The key '{0}' was not found") are code literals the player
+# never sees; they are ranked last so the budget goes to texts the game really draws.
+_DIAGNOSTIC_RE = re.compile(
+    r"\b(?:cannot|can't|could not|couldn't|unable|failed|invalid|unexpected|exception|expected|"
+    r"must be|already|not (?:found|supported|allowed|valid|implemented|specified|set)|"
+    r"unknown|null|argument|parameter|expression|overflow)\b",
+    re.IGNORECASE,
+)
+# Slots kept for choice-prefix entries even when placeholder templates alone fill the cap.
+CHOICE_ENTRY_RESERVE = 500
+LONG_TEXT = 80
+
+
+def _rank(source: str) -> tuple[int, int, int]:
+    """Sort key: UI-like first (no diagnostic wording, few placeholders, short)."""
+    placeholders = len(_TOKEN_RE.findall(source))
+    diagnostic = bool(_DIAGNOSTIC_RE.search(source)) or len(source) > LONG_TEXT
+    return (1 if diagnostic else 0, placeholders, len(source))
+
+
 def build_regex_entries(translations: Iterable[tuple[str, str]]) -> list[tuple[str, str]]:
-    """Regex entries for runtime placeholders and dynamic choices, capped at MAX_REGEX_ENTRIES."""
-    ph_entries: list[tuple[str, str]] = []
-    ch_entries: list[tuple[str, str]] = []
+    """Regex entries for runtime placeholders and dynamic choices, capped at MAX_REGEX_ENTRIES.
+
+    Beyond the cap the likeliest on-screen texts win (see ``_rank``) instead of whichever came
+    first in the harvest; placeholder templates keep priority because runtime-built strings
+    never match without a regex, and choice entries keep ``CHOICE_ENTRY_RESERVE`` slots.
+    """
+    ph_entries: list[tuple[str, str, str]] = []
+    ch_entries: list[tuple[str, str, str]] = []
 
     for src, dst in translations:
         if ph_entry := build_regex_entry(src, dst):
-            ph_entries.append(ph_entry)
+            ph_entries.append((*ph_entry, src))
         elif ch_entry := build_choice_prefix_entry(src, dst):
-            ch_entries.append(ch_entry)
+            ch_entries.append((*ch_entry, src))
 
-    # Placeholder entries have priority because runtime templates never match without regex.
-    combined = ph_entries + ch_entries
-    if len(combined) > MAX_REGEX_ENTRIES:
+    total = len(ph_entries) + len(ch_entries)
+    if total > MAX_REGEX_ENTRIES:
         logger.info(
             "%d runtime regex candidates found (%d placeholders, %d choices); capping to %d",
-            len(combined), len(ph_entries), len(ch_entries), MAX_REGEX_ENTRIES,
+            total, len(ph_entries), len(ch_entries), MAX_REGEX_ENTRIES,
         )
-    return combined[:MAX_REGEX_ENTRIES]
+        ph_entries.sort(key=lambda entry: _rank(entry[2]))
+        ch_entries.sort(key=lambda entry: _rank(entry[2]))
+    take_ph = min(len(ph_entries), MAX_REGEX_ENTRIES - min(len(ch_entries), CHOICE_ENTRY_RESERVE))
+    take_ch = min(len(ch_entries), MAX_REGEX_ENTRIES - take_ph)
+    return [(key, value) for key, value, _ in ph_entries[:take_ph] + ch_entries[:take_ch]]

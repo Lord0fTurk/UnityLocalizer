@@ -16,6 +16,7 @@ from typing import Any
 from PyQt6.QtCore import QObject, QUrl, pyqtProperty, pyqtSignal, pyqtSlot
 from PyQt6.QtGui import QDesktopServices, QGuiApplication
 
+from src.core.game_launcher import LaunchError, launch_command
 from src.core.engine_profiler import EngineProfiler, UnityGameProfile
 from src.core.harvesters.asset_harvester import AssetHarvester
 from src.core.harvesters.assembly_harvester import AssemblyHarvester
@@ -754,6 +755,7 @@ class AppBackend(QObject):
                 preferred_bundle=font_bundle,
                 override_font=self._override_font_ugui(),
                 is_il2cpp=profile.is_il2cpp,
+                linux=profile.is_linux_build,
             )
             key = "toolbox.font_inject_success" if success else "toolbox.font_inject_fail"
             self._notify("success" if success else "error", key)
@@ -870,13 +872,17 @@ class AppBackend(QObject):
         if not self._profile or not self._profile.game_exe or not self._profile.game_exe.is_file():
             self._notify("error", "dashboard.game_exe_not_found")
             return
-        exe = self._profile.game_exe
+        try:
+            command = launch_command(self._profile)
+        except LaunchError as exc:
+            self._notify("error", exc.reason_key)
+            return
         try:
             import subprocess
-            subprocess.Popen([str(exe)], cwd=str(exe.parent))
+            subprocess.Popen(command.argv, cwd=str(command.cwd))
             self._notify("info", "dashboard.game_launched")
-        except Exception as exc:
-            logger.error("Failed to launch game executable %s: %s", exe, exc)
+        except OSError as exc:
+            logger.error("Failed to launch game %s: %s", command.argv, exc)
             self._notify("error", "dashboard.status_error", error=str(exc))
 
     @pyqtSlot()

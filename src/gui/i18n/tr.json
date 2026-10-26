@@ -114,7 +114,9 @@
     "linux_native_hint": "Yerel Linux oyunu: BepInEx üzerinden başlatın. Steam > Özellikler > Başlatma Seçenekleri alanına şunu ekleyin: ./run_bepinex.sh %command%  (Steam dışında oyun klasöründe ./run_bepinex.sh çalıştırın).",
     "completion_support_text": "Bu araç işine yaradıysa geliştiriciyi destekleyebilirsin.",
     "completion_support_btn": "Destek ol",
-    "completion_support_hide": "Bir daha gösterme"
+    "completion_support_hide": "Bir daha gösterme",
+    "launch_windows_game_on_linux": "Bu bir Windows oyunu ve Linux'ta doğrudan başlatılamaz. Steam'den Proton ile başlatın ve başlatma seçeneklerine WINEDLLOVERRIDES=\"winhttp=n,b\" %command% ekleyin.",
+    "launch_not_executable": "Oyun dosyası çalıştırılabilir değil. Çalıştırılabilir yapın (chmod +x) ya da oyunu Steam'den başlatın."
   },
   "toolbox": {
     "title": "Unity Araç Kutusu & Kancalar",
@@ -409,7 +411,27 @@
     "issue_missing": "Eksik etiket/yer tutucu: {tokens}",
     "issue_unexpected": "Fazladan etiket/yer tutucu: {tokens}",
     "write_error": "sözlük dosyası yazılamadı",
-    "status_repaired": "Otomatik onarıldı"
+    "status_repaired": "Otomatik onarıldı",
+    "filter_modified": "Değişti",
+    "filter_warnings": "Sorunlu",
+    "matches": "{count} eşleşme",
+    "page_label": "Sayfa {page} / {pages}",
+    "replace_btn": "Bul ve Değiştir",
+    "replace_title": "Çevirilerde değiştir",
+    "replace_scope": "Geçerli süzgeç ve aramayla eşleşen {count} satıra uygulanır.",
+    "find_label": "Bul",
+    "replace_with": "Şununla değiştir",
+    "match_case": "Büyük/küçük harfe duyarlı",
+    "replace_note": "{0} veya <b> gibi etiketler ve yer tutucular asla değiştirilmez.",
+    "replace_cancel": "İptal",
+    "replace_apply": "Hepsini değiştir",
+    "replaced": "{count} satır değişti.",
+    "select_hint": "Düzenlemek için bir satır seçin.",
+    "row_label": "Satır {n}",
+    "modified_marker": "Değişti",
+    "revert_btn": "Geri al",
+    "apply_next_btn": "Uygula ve sonraki",
+    "tokens_label": "Korunacaklar:"
   },
   "engines": {
     "google": "Google Translate (ücretsiz, anahtarsız)",

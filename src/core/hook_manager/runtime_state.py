@@ -37,9 +37,18 @@ class LogStatus:
     detail: str = ""
 
 
-def write_runtime_marker(game_dir: Path | str, package_key: str, unity_version: str) -> None:
-    """Record the package that was deployed and when."""
-    payload = {"package": package_key, "unity_version": unity_version, "installed_at": time.time()}
+def write_runtime_marker(
+    game_dir: Path | str, package_key: str, unity_version: str, owned: list[str] | None = None
+) -> None:
+    """Record the package that was deployed and when.
+
+    ``owned`` lists the top-level files and folders the install added to the game root (names
+    that did not exist before), so an uninstall removes exactly those and nothing of the game.
+    """
+    payload: dict[str, Any] = {
+        "package": package_key, "unity_version": unity_version, "installed_at": time.time(),
+        "owned": sorted(owned or []),
+    }
     safe_write(Path(game_dir) / RUNTIME_MARKER, json.dumps(payload, indent=2), make_backup=False)
 
 

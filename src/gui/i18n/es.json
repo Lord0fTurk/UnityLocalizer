@@ -114,7 +114,9 @@
     "linux_native_hint": "Juego nativo de Linux: inícielo mediante BepInEx. En Steam > Propiedades > Opciones de lanzamiento añada: ./run_bepinex.sh %command%  (sin Steam, ejecute ./run_bepinex.sh en la carpeta del juego).",
     "completion_support_text": "Si esta herramienta te ahorró tiempo, puedes apoyar a su desarrollador.",
     "completion_support_btn": "Apoyar",
-    "completion_support_hide": "No volver a mostrar"
+    "completion_support_hide": "No volver a mostrar",
+    "launch_windows_game_on_linux": "Este es un juego de Windows y no se puede iniciar directamente en Linux. Inícielo desde Steam con Proton y añada la opción de lanzamiento WINEDLLOVERRIDES=\"winhttp=n,b\" %command%.",
+    "launch_not_executable": "El archivo del juego no es ejecutable. Hágalo ejecutable (chmod +x) o inicie el juego desde Steam."
   },
   "toolbox": {
     "title": "Herramientas y Ganchos de Unity",
@@ -409,7 +411,27 @@
     "issue_missing": "Faltan etiquetas/marcadores: {tokens}",
     "issue_unexpected": "Etiquetas/marcadores inesperados: {tokens}",
     "write_error": "no se pudo escribir el archivo de diccionario",
-    "status_repaired": "Reparada automáticamente"
+    "status_repaired": "Reparada automáticamente",
+    "filter_modified": "Cambiado",
+    "filter_warnings": "Con problemas",
+    "matches": "{count} coincidencias",
+    "page_label": "Página {page} / {pages}",
+    "replace_btn": "Buscar y reemplazar",
+    "replace_title": "Reemplazar en las traducciones",
+    "replace_scope": "Se aplica a las {count} filas que coinciden con el filtro y la búsqueda actuales.",
+    "find_label": "Buscar",
+    "replace_with": "Reemplazar con",
+    "match_case": "Distinguir mayúsculas",
+    "replace_note": "Las etiquetas y marcadores como {0} o <b> nunca se modifican.",
+    "replace_cancel": "Cancelar",
+    "replace_apply": "Reemplazar todo",
+    "replaced": "{count} filas modificadas.",
+    "select_hint": "Seleccione una fila para editarla.",
+    "row_label": "Fila {n}",
+    "modified_marker": "Cambiado",
+    "revert_btn": "Revertir",
+    "apply_next_btn": "Aplicar y siguiente",
+    "tokens_label": "Conservar:"
   },
   "engines": {
     "google": "Google Translate (gratis, sin clave)",

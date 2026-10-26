@@ -114,7 +114,9 @@
     "linux_native_hint": "네이티브 Linux 게임: BepInEx를 통해 실행하세요. Steam > 속성 > 실행 옵션에 추가: ./run_bepinex.sh %command%  (Steam 없이 게임 폴더에서 ./run_bepinex.sh 실행).",
     "completion_support_text": "이 도구가 시간을 절약해 주었다면 개발자를 후원해 주세요.",
     "completion_support_btn": "후원",
-    "completion_support_hide": "다시 표시하지 않음"
+    "completion_support_hide": "다시 표시하지 않음",
+    "launch_windows_game_on_linux": "Windows 게임이라 Linux에서 직접 실행할 수 없습니다. Steam에서 Proton으로 실행하고 실행 옵션에 WINEDLLOVERRIDES=\"winhttp=n,b\" %command% 를 추가하세요.",
+    "launch_not_executable": "게임 파일에 실행 권한이 없습니다. 실행 가능하게 설정(chmod +x)하거나 Steam에서 게임을 실행하세요."
   },
   "toolbox": {
     "title": "Unity 도구 상자 및 후크",
@@ -409,7 +411,27 @@
     "issue_missing": "누락된 태그/자리 표시자: {tokens}",
     "issue_unexpected": "예상치 못한 태그/자리 표시자: {tokens}",
     "write_error": "사전 파일을 기록할 수 없습니다",
-    "status_repaired": "자동 복구됨"
+    "status_repaired": "자동 복구됨",
+    "filter_modified": "변경됨",
+    "filter_warnings": "문제 있음",
+    "matches": "{count}개 일치",
+    "page_label": "{page} / {pages} 페이지",
+    "replace_btn": "찾기 및 바꾸기",
+    "replace_title": "번역에서 바꾸기",
+    "replace_scope": "현재 필터와 검색에 맞는 {count}개 행에 적용됩니다.",
+    "find_label": "찾기",
+    "replace_with": "바꿀 내용",
+    "match_case": "대소문자 구분",
+    "replace_note": "{0}이나 <b> 같은 태그와 자리 표시자는 절대 변경되지 않습니다.",
+    "replace_cancel": "취소",
+    "replace_apply": "모두 바꾸기",
+    "replaced": "{count}개 행이 변경되었습니다.",
+    "select_hint": "편집할 행을 선택하세요.",
+    "row_label": "{n}번 행",
+    "modified_marker": "변경됨",
+    "revert_btn": "되돌리기",
+    "apply_next_btn": "적용 후 다음",
+    "tokens_label": "유지할 항목:"
   },
   "engines": {
     "google": "Google 번역 (무료, 키 불필요)",

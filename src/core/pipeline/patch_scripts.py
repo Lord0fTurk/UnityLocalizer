@@ -177,22 +177,38 @@ is_tool() {
     return 1
 }
 
-find "$PATCH_ROOT" -type f | while IFS= read -r src; do
+# The list goes through a file, not a pipe: a loop at the end of a pipe runs in a subshell, where
+# a failing cp would not stop the script and the install would be reported as a success.
+LIST="$(mktemp)"
+trap 'rm -f "$LIST"' EXIT
+find "$PATCH_ROOT" -type f > "$LIST"
+FAILED=0
+while IFS= read -r src; do
     rel="${src#$PATCH_ROOT/}"
     if is_tool "$rel"; then
         continue
     fi
     dst="$TARGET_DIR/$rel"
-    mkdir -p "$(dirname "$dst")"
+    if ! mkdir -p "$(dirname "$dst")"; then
+        echo "[ERROR] Could not create the folder for: $rel"
+        FAILED=$((FAILED + 1))
+        continue
+    fi
     if [ ! -f "$dst.ul_orig" ] && [ ! -f "$dst.ul_new" ]; then
         if [ -f "$dst" ]; then
-            cp "$dst" "$dst.ul_orig"
+            cp "$dst" "$dst.ul_orig" || { echo "[ERROR] Could not back up: $rel"; FAILED=$((FAILED + 1)); continue; }
         else
-            touch "$dst.ul_new"
+            touch "$dst.ul_new" || { echo "[ERROR] Could not prepare: $rel"; FAILED=$((FAILED + 1)); continue; }
         fi
     fi
-    cp "$src" "$dst"
-done
+    cp "$src" "$dst" || { echo "[ERROR] Could not copy: $rel"; FAILED=$((FAILED + 1)); }
+done < "$LIST"
+
+if [ "$FAILED" -gt 0 ]; then
+    echo ""
+    echo "[ERROR] $FAILED file(s) could not be installed. Check the folder permissions and run this script again."
+    exit 1
+fi
 
 if [ -f "$TARGET_DIR/run_bepinex.sh" ]; then
     chmod +x "$TARGET_DIR/run_bepinex.sh"
@@ -256,18 +272,28 @@ is_tool() {
     return 1
 }
 
-find "$PATCH_ROOT" -type f | while IFS= read -r src; do
+LIST="$(mktemp)"
+trap 'rm -f "$LIST"' EXIT
+find "$PATCH_ROOT" -type f > "$LIST"
+FAILED=0
+while IFS= read -r src; do
     rel="${src#$PATCH_ROOT/}"
     if is_tool "$rel"; then
         continue
     fi
     dst="$TARGET_DIR/$rel"
     if [ -f "$dst.ul_orig" ]; then
-        mv -f "$dst.ul_orig" "$dst"
+        mv -f "$dst.ul_orig" "$dst" || { echo "[ERROR] Could not restore: $rel"; FAILED=$((FAILED + 1)); }
     elif [ -f "$dst.ul_new" ]; then
-        rm -f "$dst" "$dst.ul_new"
+        rm -f "$dst" "$dst.ul_new" || { echo "[ERROR] Could not remove: $rel"; FAILED=$((FAILED + 1)); }
     fi
-done
+done < "$LIST"
+
+if [ "$FAILED" -gt 0 ]; then
+    echo ""
+    echo "[ERROR] $FAILED file(s) could not be restored. Check the folder permissions and run this script again."
+    exit 1
+fi
 
 find "$PATCH_ROOT" -depth -type d | while IFS= read -r dir; do
     rel="${dir#$PATCH_ROOT}"

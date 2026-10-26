@@ -131,6 +131,8 @@ The tool never uses XUnity's `OverrideFontTextMeshPro` on IL2CPP: it crashed a U
 - **Windows games on Steam Deck / Linux (Proton / Wine):** Supported. Every exported patch package includes `Install_Patch.sh`, `Uninstall_Patch.sh`, `Yama_Kur.sh` and `Yama_Kaldir.sh`. Add `WINEDLLOVERRIDES="winhttp=n,b" %command%` to the Steam launch options; UnityLocalizer shows this hint on the Dashboard when it runs on Linux.
 - **Native Linux Unity builds (experimental):** UnityLocalizer detects `.x86_64` / ELF builds and installs the Linux BepInEx package (`run_bepinex.sh`, launch option `./run_bepinex.sh %command%`). This path has been verified only up to the package download and checksums, not on a real Linux machine yet; please report problems.
 - **macOS:** not supported yet.
+- **Known limits of native Linux games:** the game must start through `run_bepinex.sh` (Steam launch option `./run_bepinex.sh %command%`); games that launch through their own shell-script wrapper or a renamed executable can fail to load BepInEx (see the BepInEx issue tracker), and a Steam update can change the launch behaviour. The Translation font is chosen from the fonts installed on this machine (DejaVu Sans, Liberation Sans, Noto Sans, Noto Sans CJK ...); a missing glyph on another machine needs one of those fonts installed there. 32-bit IL2CPP builds are not supported on Linux.
+- **Starting the game from the app:** a native Linux game starts through `run_bepinex.sh` once the hook is installed; a Windows game must be started from Steam with Proton.
 </details>
 
 <details>
@@ -163,7 +165,7 @@ UnityLocalizer works with any valid Unity game folder containing a game executab
 
 ### Prerequisites
 - Python 3.10, 3.12, or 3.14 (64-bit recommended)
-- Windows 10/11
+- Windows 10/11, or Linux / Steam Deck in desktop mode (experimental, see below)
 
 ```powershell
 # 1. Clone the repository
@@ -183,6 +185,27 @@ python run.py --self-check
 # Build standalone Windows executable (.exe)
 python build.py
 ```
+
+### Running UnityLocalizer on Linux / Steam Deck (experimental)
+
+The app itself is cross-platform (PyQt6), but it has so far been exercised on Windows only; a Linux job in CI reports what breaks.
+
+Releases may also carry an experimental `UnityLocalizer-<version>-linux-x64.tar.gz` (extract it and run `./UnityLocalizer/UnityLocalizer`; the system packages below are still needed). It is published only when the frozen program passes its self-check and an offscreen start-up in CI, which does not prove it opens on every desktop.
+
+```bash
+# Debian / Ubuntu: libraries Qt's xcb plugin needs (Qt 6.5+ requires libxcb-cursor0)
+sudo apt install python3-venv libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+    libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxkbcommon-x11-0 libegl1
+
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
+./run.sh                    # or: python3 run.py
+```
+
+- Without `libxcb-cursor0` Qt stops with "Could not load the Qt platform plugin xcb".
+- The interface uses Japanese, Chinese, Korean and Arabic text in some languages; install a CJK and an Arabic font (for example `fonts-noto-cjk`, `fonts-noto-core`) or those languages show boxes.
+- User data lives in `~/.local/share/UnityLocalizer` (or `$XDG_DATA_HOME`).
+- On Steam Deck, use desktop mode; the filesystem is read-only outside the home folder, so install into a virtual environment there.
 
 ---
 

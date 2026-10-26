@@ -114,7 +114,9 @@
     "linux_native_hint": "Native Linux game: start it through BepInEx. In Steam > Properties > Launch Options add: ./run_bepinex.sh %command%  (without Steam, run ./run_bepinex.sh in the game folder).",
     "completion_support_text": "If this tool saved you time, you can support its developer.",
     "completion_support_btn": "Support",
-    "completion_support_hide": "Don't show again"
+    "completion_support_hide": "Don't show again",
+    "launch_windows_game_on_linux": "This is a Windows game and cannot be started directly on Linux. Start it from Steam with Proton and add the launch option WINEDLLOVERRIDES=\"winhttp=n,b\" %command%.",
+    "launch_not_executable": "The game file is not executable. Make it executable (chmod +x) or start the game from Steam."
   },
   "toolbox": {
     "title": "Unity Toolbox & Hooks",
@@ -409,7 +411,27 @@
     "issue_missing": "Missing tags/placeholders: {tokens}",
     "issue_unexpected": "Unexpected tags/placeholders: {tokens}",
     "write_error": "the dictionary file could not be written",
-    "status_repaired": "Auto-repaired"
+    "status_repaired": "Auto-repaired",
+    "filter_modified": "Changed",
+    "filter_warnings": "With issues",
+    "matches": "{count} matches",
+    "page_label": "Page {page} / {pages}",
+    "replace_btn": "Find & Replace",
+    "replace_title": "Replace in translations",
+    "replace_scope": "Applies to the {count} rows matching the current filter and search.",
+    "find_label": "Find",
+    "replace_with": "Replace with",
+    "match_case": "Match case",
+    "replace_note": "Tags and placeholders such as {0} or <b> are never changed.",
+    "replace_cancel": "Cancel",
+    "replace_apply": "Replace all",
+    "replaced": "{count} rows changed.",
+    "select_hint": "Select a row to edit it.",
+    "row_label": "Row {n}",
+    "modified_marker": "Changed",
+    "revert_btn": "Revert",
+    "apply_next_btn": "Apply & next",
+    "tokens_label": "Keep:"
   },
   "engines": {
     "google": "Google Translate (free, no key)",

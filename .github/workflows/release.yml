@@ -57,3 +57,58 @@ jobs:
         with:
           files: ${{ env.ZIP_PATH }}
           generate_release_notes: true
+
+  build-linux:
+    # Experimental. Built on an older Ubuntu so the binary runs on current distributions and
+    # SteamOS (glibc is forward-compatible only). The job fails, and nothing is attached to the
+    # release, unless the frozen program passes its own self-check and an offscreen start-up.
+    runs-on: ubuntu-22.04
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: System libraries for Qt and fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends             libegl1 libgl1 libxkbcommon0 libxkbcommon-x11-0 libdbus-1-3 libfontconfig1 libglib2.0-0             libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0             libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1             fonts-dejavu-core fonts-liberation fontconfig
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: Build standalone executable (runs the frozen self-check)
+        run: python build.py
+
+      - name: Start-up smoke test of the frozen program
+        env:
+          UNITYLOCALIZER_SMOKE_TEST: "1"
+        run: timeout 90 ./dist/UnityLocalizer/UnityLocalizer
+
+      - name: Package tar.gz (keeps the executable bit)
+        run: |
+          VERSION="${GITHUB_REF_NAME:-dev}"
+          TAR_NAME="UnityLocalizer-${VERSION//\//-}-linux-x64.tar.gz"
+          tar -czf "$TAR_NAME" -C dist UnityLocalizer
+          echo "TAR_PATH=$TAR_NAME" >> "$GITHUB_ENV"
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: UnityLocalizer-linux-x64
+          path: ${{ env.TAR_PATH }}
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.TAR_PATH }}
+          generate_release_notes: true

@@ -114,7 +114,9 @@
     "linux_native_hint": "Нативная игра для Linux: запускайте её через BepInEx. В Steam > Свойства > Параметры запуска добавьте: ./run_bepinex.sh %command%  (без Steam запустите ./run_bepinex.sh в папке игры).",
     "completion_support_text": "Если инструмент сэкономил вам время, можно поддержать его автора.",
     "completion_support_btn": "Поддержать",
-    "completion_support_hide": "Больше не показывать"
+    "completion_support_hide": "Больше не показывать",
+    "launch_windows_game_on_linux": "Это игра для Windows, её нельзя запустить напрямую в Linux. Запустите её из Steam через Proton и добавьте параметр запуска WINEDLLOVERRIDES=\"winhttp=n,b\" %command%.",
+    "launch_not_executable": "Файл игры не является исполняемым. Сделайте его исполняемым (chmod +x) или запустите игру из Steam."
   },
   "toolbox": {
     "title": "Инструменты Unity и хуки",
@@ -409,7 +411,27 @@
     "issue_missing": "Отсутствуют теги/заполнители: {tokens}",
     "issue_unexpected": "Лишние теги/заполнители: {tokens}",
     "write_error": "не удалось записать файл словаря",
-    "status_repaired": "Исправлено автоматически"
+    "status_repaired": "Исправлено автоматически",
+    "filter_modified": "Изменено",
+    "filter_warnings": "С проблемами",
+    "matches": "Совпадений: {count}",
+    "page_label": "Страница {page} / {pages}",
+    "replace_btn": "Найти и заменить",
+    "replace_title": "Замена в переводах",
+    "replace_scope": "Применяется к {count} строкам, подходящим под текущий фильтр и поиск.",
+    "find_label": "Найти",
+    "replace_with": "Заменить на",
+    "match_case": "С учётом регистра",
+    "replace_note": "Теги и заполнители вроде {0} или <b> никогда не изменяются.",
+    "replace_cancel": "Отмена",
+    "replace_apply": "Заменить всё",
+    "replaced": "Изменено строк: {count}.",
+    "select_hint": "Выберите строку для редактирования.",
+    "row_label": "Строка {n}",
+    "modified_marker": "Изменено",
+    "revert_btn": "Вернуть",
+    "apply_next_btn": "Применить и далее",
+    "tokens_label": "Сохранить:"
   },
   "engines": {
     "google": "Google Translate (бесплатно, без ключа)",

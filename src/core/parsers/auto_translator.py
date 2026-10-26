@@ -90,6 +90,10 @@ class AutoTranslatorParser(BaseParser):
             logger.warning("Failed to read AutoTranslator dictionary %s: %s", path, exc)
             return []
 
+    def read_dictionary(self, file_path: Path | str) -> list[tuple[str, str]]:
+        """Decoded (key, value) pairs of a dictionary file, regex and comment lines excluded."""
+        return self._read_entries(Path(file_path))
+
     def _read_entries(self, path: Path) -> list[tuple[str, str]]:
         """Decode all plain (non-regex) key/value entries of a dictionary file."""
         entries: list[tuple[str, str]] = []

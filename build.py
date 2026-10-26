@@ -102,7 +102,7 @@ def build_binary(root_dir: Path, onefile: bool = False, console: bool = False) -
     cmd.append("--onefile" if onefile else "--onedir")
     cmd.append("--console" if console else "--windowed")
 
-    if icon_file.is_file():
+    if icon_file.is_file() and sys.platform == "win32":  # .ico is a Windows icon; other platforms ignore or reject it
         cmd.extend(["--icon", str(icon_file)])
 
     cmd.extend(get_data_args(root_dir))

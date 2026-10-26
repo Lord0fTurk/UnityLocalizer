@@ -13,6 +13,7 @@ from src.core.harvesters.harvest_collector import HarvestCollector, HarvestResul
 from src.core.harvesters.harvest_stats import HarvestStats
 from src.core.hook_layout import dictionary_path, substitutions_path
 from src.core.hook_manager.font_bootstrap import FontBootstrap
+from src.core.hook_manager.system_fonts import default_system_font
 from src.core.hook_manager.font_provisioner import FontProvisioner
 from src.core.hook_manager.glyph_coverage import analyze_coverage, tmp_bundle_codepoints
 from src.core.lang_detect import SourceLanguageDetector
@@ -350,12 +351,7 @@ class UnityTranslationPipeline:
             if available is not None:
                 report = analyze_coverage(translations.values(), available)
                 if not report.is_complete:
-                    from src.core.hook_manager.font_bootstrap import (
-                        DEFAULT_IL2CPP_SYSTEM_FONTS,
-                        FALLBACK_IL2CPP_SYSTEM_FONT,
-                    )
-                    base_target = target_lang.split("-")[0].lower()
-                    tmp_font = DEFAULT_IL2CPP_SYSTEM_FONTS.get(base_target, FALLBACK_IL2CPP_SYSTEM_FONT)
+                    tmp_font = default_system_font(target_lang, profile.is_linux_build)
                     logger.info(
                         "Automatically wired system font %s for TextMeshPro to cover %d missing glyphs",
                         tmp_font, len(report.missing),
@@ -369,6 +365,7 @@ class UnityTranslationPipeline:
             preferred_bundle=font_bundle,
             override_font=self.override_font,
             is_il2cpp=profile.is_il2cpp,
+            linux=profile.is_linux_build,
         )
         self._report_glyph_coverage(font_bundle, translations)
 

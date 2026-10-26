@@ -9,27 +9,17 @@ from pathlib import Path
 
 from src.core.hook_layout import AUTOTRANSLATOR_CONFIG, XUNITY_TEXT_DIRECTORY
 from src.core.hook_manager.ini_merge import IniValues, merge_ini
+from src.core.hook_manager.system_fonts import (  # noqa: F401  (re-exported)
+    DEFAULT_IL2CPP_SYSTEM_FONTS,
+    FALLBACK_IL2CPP_SYSTEM_FONT,
+    default_system_font,
+)
 from src.utils.file_ops import safe_write
 
 logger = logging.getLogger(__name__)
 
 # Directories (relative to game root) where TMP font AssetBundles are conventionally placed.
 TMP_BUNDLE_DIRS: tuple[str, ...] = ("BepInEx/font", "BepInEx/fonts", ".")
-
-# Reliable OS TrueType fonts for IL2CPP builds whose stripped runtime cannot load AssetBundles.
-DEFAULT_IL2CPP_SYSTEM_FONTS: dict[str, str] = {
-    "zh": "SimHei",
-    "ja": "Meiryo",
-    "ko": "Malgun Gothic",
-    "ar": "Segoe UI",
-    "fa": "Segoe UI",
-    "he": "Segoe UI",
-    "ru": "Arial",
-    "uk": "Arial",
-    "be": "Arial",
-    "tr": "Arial",
-}
-FALLBACK_IL2CPP_SYSTEM_FONT: str = "Arial"
 
 # Written only when missing, so a user's later tuning of these options survives re-runs.
 _LAYOUT_SAFE_DEFAULTS: IniValues = {
@@ -83,6 +73,7 @@ class FontBootstrap:
         preferred_bundle: Path | None = None,
         override_font: str | None = None,
         is_il2cpp: bool = False,
+        linux: bool = False,
     ) -> bool:
         """Wire a detected TMP font bundle into an offline-only AutoTranslatorConfig.ini.
 
@@ -93,6 +84,7 @@ class FontBootstrap:
         chosen automatically per language when None) and ``OverrideFontTextMeshPro`` stays
         empty; otherwise it sets ``OverrideFontTextMeshPro`` (an empty string switches it off).
         ``override_font`` sets XUnity's ``OverrideFont`` (uGUI / UnityEngine.UI.Text).
+        ``linux`` picks Linux font names (a native Linux game) instead of Windows ones.
         """
         game_path = Path(game_dir)
         if not game_path.is_dir():
@@ -100,13 +92,12 @@ class FontBootstrap:
 
         config_path = game_path / AUTOTRANSLATOR_CONFIG
         behaviour: dict[str, str] = {}
-        base_target = target_lang.split("-")[0].lower()
         if is_il2cpp:
             # AssetBundle loading is stripped in IL2CPP runtime, so the fallback is an OS font. It is added
             # as a *fallback* (extra glyphs only): XUnity's OverrideFontTextMeshPro swaps the material of
             # every text and crashed a Unity 6000 game (access violation in TMP_Text.set_fontSharedMaterial).
             if tmp_override_font is None:
-                tmp_override_font = DEFAULT_IL2CPP_SYSTEM_FONTS.get(base_target, FALLBACK_IL2CPP_SYSTEM_FONT)
+                tmp_override_font = default_system_font(target_lang, linux)
             behaviour["FallbackFontTextMeshPro"] = tmp_override_font.strip()
             behaviour["OverrideFontTextMeshPro"] = ""
             tmp_override_font = None

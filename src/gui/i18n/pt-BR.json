@@ -114,7 +114,9 @@
     "linux_native_hint": "Jogo nativo de Linux: inicie-o pelo BepInEx. Em Steam > Propriedades > Opções de inicialização adicione: ./run_bepinex.sh %command%  (sem Steam, execute ./run_bepinex.sh na pasta do jogo).",
     "completion_support_text": "Se esta ferramenta economizou seu tempo, você pode apoiar o desenvolvedor.",
     "completion_support_btn": "Apoiar",
-    "completion_support_hide": "Não mostrar novamente"
+    "completion_support_hide": "Não mostrar novamente",
+    "launch_windows_game_on_linux": "Este é um jogo de Windows e não pode ser iniciado diretamente no Linux. Inicie-o pelo Steam com o Proton e adicione a opção de inicialização WINEDLLOVERRIDES=\"winhttp=n,b\" %command%.",
+    "launch_not_executable": "O arquivo do jogo não é executável. Torne-o executável (chmod +x) ou inicie o jogo pelo Steam."
   },
   "toolbox": {
     "title": "Ferramentas & Hooks da Unity",
@@ -409,7 +411,27 @@
     "issue_missing": "Tags/marcadores ausentes: {tokens}",
     "issue_unexpected": "Tags/marcadores inesperados: {tokens}",
     "write_error": "não foi possível gravar o arquivo de dicionário",
-    "status_repaired": "Reparada automaticamente"
+    "status_repaired": "Reparada automaticamente",
+    "filter_modified": "Alterado",
+    "filter_warnings": "Com problemas",
+    "matches": "{count} correspondências",
+    "page_label": "Página {page} / {pages}",
+    "replace_btn": "Localizar e substituir",
+    "replace_title": "Substituir nas traduções",
+    "replace_scope": "Aplica-se às {count} linhas que correspondem ao filtro e à busca atuais.",
+    "find_label": "Localizar",
+    "replace_with": "Substituir por",
+    "match_case": "Diferenciar maiúsculas",
+    "replace_note": "Tags e marcadores como {0} ou <b> nunca são alterados.",
+    "replace_cancel": "Cancelar",
+    "replace_apply": "Substituir tudo",
+    "replaced": "{count} linhas alteradas.",
+    "select_hint": "Selecione uma linha para editar.",
+    "row_label": "Linha {n}",
+    "modified_marker": "Alterado",
+    "revert_btn": "Reverter",
+    "apply_next_btn": "Aplicar e próxima",
+    "tokens_label": "Manter:"
   },
   "engines": {
     "google": "Google Translate (grátis, sem chave)",

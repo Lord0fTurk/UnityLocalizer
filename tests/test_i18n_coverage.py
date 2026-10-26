@@ -22,7 +22,7 @@ _ALLOWED = {
     "UnityLocalizer", "auto", "code", "name", "id", "level", "info", "success", "warning", "error",
     "AIzaSy...", "sk-...", "gemini-2.5-flash", "gpt-4o-mini", "qwen2.5:latest", "Arial",
     "http://localhost:11434", "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx", "icon.png",
-    "rejected", "invalid", "failed", "edited", "accepted", "unchanged", "repaired",
+    "rejected", "invalid", "failed", "edited", "accepted", "unchanged", "repaired", "modified", "warnings",
     "ALL", "INFO", "SUCCESS", "WARNING", "WARN", "ERROR",
     "Consolas, 'Cascadia Code', monospace", "english", "native",
 }
@@ -37,6 +37,8 @@ _DYNAMIC_KEYS = [
     "engines.libretranslate", "engines.pseudo",
     # PatchExporter.preflight() problems, shown by AppBackend.exportPatchPackage.
     "dashboard.patch_no_hook", "dashboard.patch_no_translations", "dashboard.patch_il2cpp_first_run",
+    # game_launcher.LaunchError reasons, shown by AppBackend.launchGame.
+    "dashboard.launch_windows_game_on_linux", "dashboard.launch_not_executable",
 ]
 # AboutView technology list: product names, not translatable prose.
 _TECH_NAMES = {

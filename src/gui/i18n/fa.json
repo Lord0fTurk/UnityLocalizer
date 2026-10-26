@@ -114,7 +114,9 @@
     "linux_native_hint": "بازی بومی Linux: آن را از طریق BepInEx اجرا کنید. در Steam > Properties > Launch Options این را اضافه کنید: ./run_bepinex.sh %command%  (بدون Steam، ./run_bepinex.sh را در پوشه بازی اجرا کنید).",
     "completion_support_text": "اگر این ابزار در وقت شما صرفه‌جویی کرد، می‌توانید از توسعه‌دهنده حمایت کنید.",
     "completion_support_btn": "حمایت",
-    "completion_support_hide": "دیگر نمایش نده"
+    "completion_support_hide": "دیگر نمایش نده",
+    "launch_windows_game_on_linux": "این یک بازی ویندوزی است و در لینوکس مستقیم اجرا نمی‌شود. آن را از Steam با Proton اجرا کنید و گزینه راه‌اندازی WINEDLLOVERRIDES=\"winhttp=n,b\" %command% را اضافه کنید.",
+    "launch_not_executable": "فایل بازی اجرایی نیست. آن را اجرایی کنید (chmod +x) یا بازی را از Steam اجرا کنید."
   },
   "toolbox": {
     "title": "جعبه ابزار یونیتی و هوک‌ها",
@@ -409,7 +411,27 @@
     "issue_missing": "برچسب/جای‌نگهدارهای جاافتاده: {tokens}",
     "issue_unexpected": "برچسب/جای‌نگهدارهای اضافی: {tokens}",
     "write_error": "فایل واژه‌نامه نوشته نشد",
-    "status_repaired": "ترمیم خودکار"
+    "status_repaired": "ترمیم خودکار",
+    "filter_modified": "تغییر کرده",
+    "filter_warnings": "دارای مشکل",
+    "matches": "{count} تطابق",
+    "page_label": "صفحه {page} / {pages}",
+    "replace_btn": "جستجو و جایگزینی",
+    "replace_title": "جایگزینی در ترجمه‌ها",
+    "replace_scope": "روی {count} ردیفی اعمال می‌شود که با فیلتر و جستجوی فعلی مطابقت دارند.",
+    "find_label": "جستجو",
+    "replace_with": "جایگزین با",
+    "match_case": "حساس به حروف بزرگ و کوچک",
+    "replace_note": "برچسب‌ها و جایگزین‌هایی مانند {0} یا <b> هرگز تغییر نمی‌کنند.",
+    "replace_cancel": "لغو",
+    "replace_apply": "جایگزینی همه",
+    "replaced": "{count} ردیف تغییر کرد.",
+    "select_hint": "برای ویرایش یک ردیف را انتخاب کنید.",
+    "row_label": "ردیف {n}",
+    "modified_marker": "تغییر کرده",
+    "revert_btn": "بازگردانی",
+    "apply_next_btn": "اعمال و بعدی",
+    "tokens_label": "حفظ شود:"
   },
   "engines": {
     "google": "Google Translate (رایگان، بدون کلید)",

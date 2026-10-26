@@ -114,7 +114,9 @@
     "linux_native_hint": "ネイティブLinuxゲーム：BepInEx経由で起動してください。Steam > プロパティ > 起動オプションに次を追加：./run_bepinex.sh %command%（Steamなしではゲームフォルダーで ./run_bepinex.sh を実行）。",
     "completion_support_text": "このツールが役に立ったら、開発者を支援していただけます。",
     "completion_support_btn": "支援する",
-    "completion_support_hide": "今後表示しない"
+    "completion_support_hide": "今後表示しない",
+    "launch_windows_game_on_linux": "これはWindows用のゲームで、Linuxでは直接起動できません。SteamからProtonで起動し、起動オプションに WINEDLLOVERRIDES=\"winhttp=n,b\" %command% を追加してください。",
+    "launch_not_executable": "ゲームのファイルに実行権限がありません。実行可能にする（chmod +x）か、Steamからゲームを起動してください。"
   },
   "toolbox": {
     "title": "Unity ツールボックス & フック",
@@ -409,7 +411,27 @@
     "issue_missing": "不足しているタグ/プレースホルダー: {tokens}",
     "issue_unexpected": "余分なタグ/プレースホルダー: {tokens}",
     "write_error": "辞書ファイルを書き込めませんでした",
-    "status_repaired": "自動修復済み"
+    "status_repaired": "自動修復済み",
+    "filter_modified": "変更あり",
+    "filter_warnings": "問題あり",
+    "matches": "{count}件一致",
+    "page_label": "{page} / {pages} ページ",
+    "replace_btn": "検索と置換",
+    "replace_title": "翻訳内を置換",
+    "replace_scope": "現在のフィルターと検索に一致する{count}行に適用されます。",
+    "find_label": "検索",
+    "replace_with": "置換後",
+    "match_case": "大文字と小文字を区別",
+    "replace_note": "{0}や<b>などのタグとプレースホルダーは変更されません。",
+    "replace_cancel": "キャンセル",
+    "replace_apply": "すべて置換",
+    "replaced": "{count}行を変更しました。",
+    "select_hint": "編集する行を選択してください。",
+    "row_label": "行 {n}",
+    "modified_marker": "変更あり",
+    "revert_btn": "元に戻す",
+    "apply_next_btn": "適用して次へ",
+    "tokens_label": "保持するもの:"
   },
   "engines": {
     "google": "Google 翻訳（無料・キー不要）",
