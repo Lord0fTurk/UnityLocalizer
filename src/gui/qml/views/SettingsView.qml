@@ -81,6 +81,7 @@ ScrollView {
                         { icon: Icons.bookOpen, key: "settings.subtab_glossary" }
                     ]
                     delegate: Button {
+                        Accessible.name: root.t(modelData.key)
                         id: subTabBtn
                         readonly property bool isSelected: root.activeSubTab === index
                         Layout.fillWidth: true
@@ -172,6 +173,7 @@ ScrollView {
                                     { mode: "cyber_neon", label: root.t("settings.theme_mode_cyber_neon"), icon: Icons.zap }
                                 ]
                                 delegate: Button {
+                                    Accessible.name: modelData.label
                                     id: themeModeBtn
                                     readonly property bool isSelected: Theme.mode === modelData.mode
                                     Layout.fillWidth: true
@@ -251,12 +253,13 @@ ScrollView {
 
                             Repeater {
                                 model: [
-                                    { preset: "cyan", label: root.t("settings.accent_preset_cyan"), hex: "#06B6D4" },
-                                    { preset: "emerald", label: root.t("settings.accent_preset_emerald"), hex: "#10B981" },
-                                    { preset: "indigo", label: root.t("settings.accent_preset_indigo"), hex: "#6366F1" },
-                                    { preset: "amber", label: root.t("settings.accent_preset_amber"), hex: "#F59E0B" }
+                                    { preset: "cyan", label: root.t("settings.accent_preset_cyan"), hex: Theme.presetSwatches.cyan },
+                                    { preset: "emerald", label: root.t("settings.accent_preset_emerald"), hex: Theme.presetSwatches.emerald },
+                                    { preset: "indigo", label: root.t("settings.accent_preset_indigo"), hex: Theme.presetSwatches.indigo },
+                                    { preset: "amber", label: root.t("settings.accent_preset_amber"), hex: Theme.presetSwatches.amber }
                                 ]
                                 delegate: Button {
+                                    Accessible.name: modelData.label
                                     id: accentBtn
                                     readonly property bool isSelected: Theme.preset === modelData.preset
                                     readonly property color accentColor: modelData.hex
@@ -321,6 +324,39 @@ ScrollView {
                             }
                         }
                     }
+
+                    // 3. Interface size (global zoom, applied on the next start)
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        Label {
+                            text: root.t("settings.ui_scale_label")
+                            color: Theme.textSecondary
+                            font.pixelSize: 12
+                            font.bold: true
+                        }
+
+                        SegmentedToggle {
+                            Layout.fillWidth: true
+                            model: [
+                                { value: "100", label: "100%" },
+                                { value: "115", label: "115%" },
+                                { value: "130", label: "130%" },
+                                { value: "150", label: "150%" }
+                            ]
+                            currentValue: appBackend && appBackend.settings.ui_scale ? String(appBackend.settings.ui_scale) : "100"
+                            onSelectionChanged: (value) => { if (appBackend) appBackend.setSetting("ui_scale", value); }
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: root.t("settings.ui_scale_hint")
+                            wrapMode: Text.WordWrap
+                            font.pixelSize: 11
+                            color: Theme.textMuted
+                        }
+                    }
                 }
             }
 
@@ -358,6 +394,7 @@ ScrollView {
                 }
                 CheckBox {
                     text: root.t("settings.patch_loose_checkbox")
+                    enabled: Boolean(appBackend && appBackend.settings["harvest_streaming"])
                     checked: Boolean(appBackend && appBackend.patchLooseFiles)
                     Material.accent: clrAccent
                     onToggled: { if (appBackend) appBackend.setPatchLooseFiles(checked); }
@@ -369,6 +406,56 @@ ScrollView {
                     text: root.t("settings.patch_loose_desc")
                     font.pixelSize: 11
                     color: clrTxtDim
+                }
+                Label {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 12
+                    wrapMode: Text.WordWrap
+                    visible: !Boolean(appBackend && appBackend.settings["harvest_streaming"])
+                    text: root.t("settings.patch_loose_needs_streaming")
+                    font.pixelSize: 11
+                    color: Theme.statusWarning
+                }
+            }
+
+            SettingCard {
+                iconGlyph: Icons.folderOpen
+                title: root.t("settings.channels_card_title")
+                description: root.t("settings.channels_card_desc")
+                SettingSwitch {
+                    key: "harvest_assets"
+                    label: root.t("settings.channel_assets_label")
+                    description: root.t("settings.channel_assets_desc")
+                }
+                SettingSwitch {
+                    key: "harvest_code"
+                    label: root.t("settings.channel_code_label")
+                    description: root.t("settings.channel_code_desc")
+                }
+                SettingSwitch {
+                    key: "harvest_streaming"
+                    label: root.t("settings.channel_streaming_label")
+                    description: root.t("settings.channel_streaming_desc")
+                }
+                SettingSwitch {
+                    key: "harvest_localization"
+                    label: root.t("settings.channel_localization_label")
+                    description: root.t("settings.channel_localization_desc")
+                }
+                SettingSwitch {
+                    key: "harvest_memory_guard"
+                    label: root.t("settings.memory_guard_label")
+                    description: root.t("settings.memory_guard_desc")
+                }
+                SettingSwitch {
+                    key: "harvest_isolated"
+                    label: root.t("settings.isolated_scan_label")
+                    description: root.t("settings.isolated_scan_desc")
+                }
+                SettingSwitch {
+                    key: "harvest_split_data_lines"
+                    label: root.t("settings.split_data_lines_label")
+                    description: root.t("settings.split_data_lines_desc")
                 }
             }
 
@@ -708,6 +795,7 @@ ScrollView {
                         onAccepted: glossaryAddBtn.clicked()
                     }
                     Button {
+                        Accessible.name: root.t("settings.glossary_add_btn")
                         id: glossaryAddBtn
                         Layout.preferredHeight: Theme.heightInput
                         enabled: glossaryTermInput.text.trim().length > 0 && glossaryReplacementInput.text.trim().length > 0
@@ -772,6 +860,7 @@ ScrollView {
                             Label { text: "→"; color: clrTxtDim }
                             Label { Layout.preferredWidth: 1; Layout.fillWidth: true; text: modelData.replacement; color: clrAccent; font.pixelSize: 13; elide: Text.ElideRight }
                             ToolButton {
+                                Accessible.name: root.t("settings.glossary_remove")
                                 contentItem: Icon {
                                     glyph: Icons.trash2
                                     size: 16
@@ -793,6 +882,24 @@ ScrollView {
                 SettingTextArea {
                     key: "protected_terms"
                     placeholder: root.t("settings.protected_terms_placeholder")
+                }
+            }
+
+            SettingCard {
+                iconGlyph: Icons.lock
+                title: root.t("settings.ignore_card_title")
+                description: root.t("settings.ignore_card_desc")
+                SettingSwitch {
+                    key: "ignore_engine_placeholders"
+                    label: root.t("settings.ignore_placeholders_checkbox")
+                    description: root.t("settings.ignore_placeholders_desc")
+                }
+                SettingTextArea {
+                    key: "ignore_rules"
+                    label: root.t("settings.ignore_rules_label")
+                    hint: root.t("settings.ignore_rules_hint")
+                    placeholder: root.t("settings.ignore_rules_placeholder")
+                    minLines: 3
                 }
             }
 

@@ -19,6 +19,7 @@ from src.core.hook_layout import (
     runtime_hook_ready,
     safe_lang_segment,
 )
+from src.core.hook_manager.delayed_start import DelayedStartResult, apply_delayed_start
 from src.core.hook_manager.font_bootstrap import FontBootstrap
 from src.core.hook_manager.font_provisioner import FontProvisioner
 from src.core.hook_manager.runtime_state import read_runtime_marker, remove_runtime_marker, write_runtime_marker
@@ -347,6 +348,7 @@ class HookInstaller:
         Raises ``RuntimeSetupError`` with a user-presentable reason when it fails.
         """
         if not cls.needs_install(game_dir, is_64bit, is_il2cpp, metadata_version, linux):
+            cls.apply_runtime_fixes(game_dir, unity_version, is_il2cpp, progress_callback)
             return False
         target = RuntimeTarget(is_64bit, is_il2cpp, metadata_version, linux, executable_name)
         cls._deploy(Path(game_dir), target, target_lang, progress_callback, unity_version, source_lang)
@@ -375,6 +377,7 @@ class HookInstaller:
             # The BepInEx folder holds the user's translations and stays on a normal uninstall.
             owned = sorted(name for name in added if name not in existing and name != "BepInEx")
 
+            cls.apply_runtime_fixes(root, unity_version, target.is_il2cpp, progress_callback)
             emit(progress_callback, "installer.configuring")
             if target.linux:
                 cls._prepare_linux_launcher(root, target.executable_name)
@@ -393,6 +396,23 @@ class HookInstaller:
             raise RuntimeSetupError(_failure_reason_key(exc), str(exc)) from exc
         emit(progress_callback, "installer.done", 1, 1)
         logger.info("Successfully deployed BepInEx + AutoTranslator to %s", root)
+
+    @staticmethod
+    def apply_runtime_fixes(
+        game_dir: Path | str, unity_version: str, is_il2cpp: bool, progress_callback: ProgressCallback | None = None
+    ) -> None:
+        """Fixes an installed hook needs on some games, applied to new and existing installs alike (never fatal).
+
+        Today that is the delayed-start XUnity wrapper (see ``delayed_start``); the user is told when it was
+        switched on because the game's last run ended while XUnity was starting.
+        """
+        try:
+            result = apply_delayed_start(Path(game_dir), unity_version, is_il2cpp)
+        except OSError as exc:
+            logger.warning("Could not apply the delayed-start wrapper in %s: %s", game_dir, exc)
+            return
+        if result is DelayedStartResult.APPLIED_AFTER_CRASH:
+            emit(progress_callback, "installer.delayed_start_after_crash")
 
     @staticmethod
     def _prepare_linux_launcher(root: Path, executable_name: str) -> None:

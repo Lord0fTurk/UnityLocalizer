@@ -35,6 +35,7 @@ def get_data_args(root_dir: Path) -> list[str]:
     data_items = [
         ("src/gui/qml", "src/gui/qml"),
         ("src/gui/i18n", "src/gui/i18n"),
+        ("src/core/hook_manager/xunity_wrapper", "src/core/hook_manager/xunity_wrapper"),
     ]
     args: list[str] = []
     for src, dst in data_items:
@@ -76,10 +77,12 @@ def get_collect_args() -> list[str]:
 
     UnityPy reads its class database (``resources/lzma.tpk``) through
     importlib.resources and imports helpers lazily; py7zr picks codecs at runtime;
-    py3langid loads its language model from a ``data`` file next to the module.
+    py3langid loads its language model from a ``data`` file next to the module;
+    TypeTreeGeneratorAPI is a native library UnityPy imports lazily.
     """
     args: list[str] = [
         "--collect-all", "UnityPy", "--collect-submodules", "py7zr", "--collect-all", "py3langid",
+        "--collect-all", "TypeTreeGeneratorAPI",
     ]
     return args
 

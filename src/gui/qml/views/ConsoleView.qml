@@ -63,6 +63,7 @@ Item {
             Item { Layout.fillWidth: true }
 
             Button {
+                Accessible.name: root.t("console.copy_logs_btn")
                 height: Theme.heightSecondary
                 topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
                 scale: down ? 0.97 : (hovered ? 1.02 : 1.0)
@@ -88,6 +89,7 @@ Item {
             }
 
             Button {
+                Accessible.name: root.t("console.clear_logs_btn")
                 height: Theme.heightSecondary
                 topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
                 scale: down ? 0.97 : (hovered ? 1.02 : 1.0)
@@ -145,7 +147,7 @@ Item {
                             Label {
                                 anchors.centerIn: parent
                                 text: modelData.label
-                                font.pixelSize: 10
+                                font.pixelSize: 11
                                 font.bold: root.selectedLevel === modelData.key
                                 color: root.selectedLevel === modelData.key ? modelData.color : Theme.textSecondary
                             }
@@ -202,7 +204,7 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             radius: Theme.radiusCard
-            color: Theme.isDark ? "#080C13" : "#F8FAFC"
+            color: Theme.surfaceInset
             border.color: clrCardBorder
             border.width: 1
 
@@ -254,9 +256,9 @@ Item {
                             implicitWidth: 64; implicitHeight: 18; radius: 4
                             color: {
                                 var l = (modelData.level || "").toLowerCase();
-                                if (l === "error") return Qt.rgba(239/255, 68/255, 68/255, 0.2);
-                                if (l === "warning" || l === "warn") return Qt.rgba(245/255, 158/255, 11/255, 0.2);
-                                if (l === "success") return Qt.rgba(16/255, 185/255, 129/255, 0.2);
+                                if (l === "error") return Qt.alpha(Theme.statusDanger, 0.2);
+                                if (l === "warning" || l === "warn") return Qt.alpha(Theme.statusWarning, 0.2);
+                                if (l === "success") return Qt.alpha(Theme.statusSuccess, 0.2);
                                 return Qt.rgba(0, 242/255, 254/255, 0.15);
                             }
                             border.color: {
@@ -276,7 +278,7 @@ Item {
                                     var key = l === "warning" ? "warn" : l;
                                     return root.t("console.filter_" + key);
                                 }
-                                font.pixelSize: 9
+                                font.pixelSize: 11
                                 font.bold: true
                                 color: {
                                     var l = (modelData.level || "").toLowerCase();

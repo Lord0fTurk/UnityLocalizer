@@ -30,21 +30,13 @@ from src.core.parsers.text_formats import (
 )
 from src.core.parsers.naninovel_parser import NaninovelParser, line_strings
 from src.core.parsers.subtitle_resx import resx_strings, srt_strings, translate_resx, translate_srt
+from src.core.parsers.text_encoding import DecodedText, TextEncoding, UnencodableTextError, decode_file
 from src.core.parsers.yarn_lines import looks_like_yarn, translate_yarn_text, yarn_strings
 from src.utils.file_ops import pristine_source, safe_write
 
 logger = logging.getLogger(__name__)
 
 SUPPORTED_SUFFIXES = frozenset({".json", ".csv", ".tsv", ".txt", ".yarn", ".xml", ".nani", ".srt", ".resx"})
-
-
-def _detect_encoding(path: Path) -> str:
-    """Return 'utf-8-sig' if the original file starts with a UTF-8 BOM, else 'utf-8'."""
-    try:
-        with open(path, "rb") as f:
-            return "utf-8-sig" if f.read(3) == b"\xef\xbb\xbf" else "utf-8"
-    except OSError:
-        return "utf-8"
 
 
 def _replace_json_iterative(root: Any, translations: dict[str, str]) -> Any:
@@ -107,12 +99,27 @@ class StreamingAssetsParser(BaseParser):
         suffix = path.suffix.lower()
         if not path.is_file() or suffix not in SUPPORTED_SUFFIXES:
             return []
-        try:
-            text = pristine_source(path).read_text(encoding="utf-8-sig", errors="replace")
-        except OSError as exc:
-            logger.error("Failed to read %s: %s", path, exc)
+        decoded = decode_file(pristine_source(path), self.source_lang)
+        if decoded is None:
             return []
-        return self._extract_by_suffix(text, suffix, path)
+        return self._extract_by_suffix(decoded.text, suffix, path)
+
+    def _read(self, path: Path) -> DecodedText | None:
+        """The file's text in its own encoding (Shift-JIS, GBK, UTF-16, ...); None when unreadable."""
+        return decode_file(path, self.source_lang)
+
+    @staticmethod
+    def _write(out_path: Path, content: str, encoding: TextEncoding) -> bool:
+        """Write ``content`` in the encoding the file had; a text its encoding cannot hold is skipped."""
+        try:
+            data = encoding.encode(content)
+        except UnencodableTextError as exc:
+            logger.warning(
+                "Left %s unpatched: %s. The runtime dictionary still translates this text in game.",
+                out_path.name, exc,
+            )
+            return False
+        return safe_write(out_path, data)
 
     def _extract_by_suffix(self, text: str, suffix: str, path: Path) -> list[str]:
         """Dispatch text to the extractor matching the file extension."""
@@ -163,23 +170,22 @@ class StreamingAssetsParser(BaseParser):
         if suffix in (".txt", ".yarn"):
             return self._apply_txt(source, out_path, translations, is_yarn=suffix == ".yarn")
         if suffix == ".nani":
-            return NaninovelParser().apply_translations(path, translations, out_path)
+            return NaninovelParser(self.source_lang).apply_translations(path, translations, out_path)
         if suffix in (".srt", ".resx"):
             return self._apply_converter(
                 source, out_path, translations, translate_srt if suffix == ".srt" else translate_resx
             )
         return False
 
-    @staticmethod
     def _apply_converter(
-        in_path: Path, out_path: Path, translations: dict[str, str], convert: Callable[[str, dict[str, str]], str]
+        self, in_path: Path, out_path: Path, translations: dict[str, str], convert: Callable[[str, dict[str, str]], str]
     ) -> bool:
         """Run a text converter over the pristine file and write the result atomically."""
         try:
-            encoding = _detect_encoding(in_path)
-            with open(in_path, "r", encoding="utf-8-sig", errors="ignore", newline="") as f:
-                text = f.read()
-            return safe_write(out_path, convert(text, translations), encoding=encoding)
+            decoded = self._read(in_path)
+            if decoded is None:
+                return False
+            return self._write(out_path, convert(decoded.text, translations), decoded.encoding)
         except Exception as exc:
             logger.error("Failed to apply translations to %s: %s", in_path, exc)
             return False
@@ -187,14 +193,15 @@ class StreamingAssetsParser(BaseParser):
     def _apply_json(self, in_path: Path, out_path: Path, translations: dict[str, str]) -> bool:
         """Replace translated strings in JSON structure and write atomically."""
         try:
-            encoding = _detect_encoding(in_path)
-            with open(in_path, "r", encoding="utf-8-sig", errors="ignore") as f:
-                data = json.load(f, strict=False)
+            decoded = self._read(in_path)
+            if decoded is None:
+                return False
+            data = json.loads(decoded.text, strict=False)
 
             updated = translate_ink(data, translations) if is_ink_document(data) else _replace_json_iterative(data, translations)
             indent = None if is_ink_document(data) else 2
             content = json.dumps(updated, indent=indent, ensure_ascii=False)
-            return safe_write(out_path, content, encoding=encoding)
+            return self._write(out_path, content, decoded.encoding)
         except Exception as exc:
             logger.error("Failed to apply translations to JSON %s: %s", in_path, exc)
             return False
@@ -202,13 +209,13 @@ class StreamingAssetsParser(BaseParser):
     def _apply_xml(self, in_path: Path, out_path: Path, translations: dict[str, str]) -> bool:
         """Replace translated element text in XML and write atomically."""
         try:
-            encoding = _detect_encoding(in_path)
-            with open(in_path, "r", encoding="utf-8-sig", errors="ignore", newline="") as f:
-                text = f.read()
-            updated = translate_xml_text(text, translations)
+            decoded = self._read(in_path)
+            if decoded is None:
+                return False
+            updated = translate_xml_text(decoded.text, translations)
             if updated is None:
                 return False
-            return safe_write(out_path, updated, encoding=encoding)
+            return self._write(out_path, updated, decoded.encoding)
         except Exception as exc:
             logger.error("Failed to apply translations to XML %s: %s", in_path, exc)
             return False
@@ -218,9 +225,10 @@ class StreamingAssetsParser(BaseParser):
     ) -> bool:
         """Replace translated cells (source column only for string tables) and write atomically."""
         try:
-            encoding = _detect_encoding(in_path)
-            with open(in_path, "r", encoding="utf-8-sig", errors="ignore", newline="") as f:
-                text = f.read()
+            decoded = self._read(in_path)
+            if decoded is None:
+                return False
+            text = decoded.text
             rows = parse_rows(text, delimiter)
             layout = detect_layout(rows[0], self.source_lang, self.target_lang) if rows else None
             if layout is not None:
@@ -229,7 +237,7 @@ class StreamingAssetsParser(BaseParser):
                 rows = [[self._translate_cell(cell, translations) for cell in row] for row in rows]
             newline = "\r\n" if "\r\n" in text else "\n"
             content = serialize_rows(rows, delimiter, newline)
-            return safe_write(out_path, content, encoding=encoding)
+            return self._write(out_path, content, decoded.encoding)
         except Exception as exc:
             logger.error("Failed to apply translations to CSV %s: %s", in_path, exc)
             return False
@@ -247,11 +255,12 @@ class StreamingAssetsParser(BaseParser):
     ) -> bool:
         """Replace translated lines in flat text, Yarn, or sniffed structured .txt files."""
         try:
-            encoding = _detect_encoding(in_path)
-            with open(in_path, "r", encoding="utf-8-sig", errors="ignore", newline="") as f:
-                text = f.read()
+            decoded = self._read(in_path)
+            if decoded is None:
+                return False
+            text = decoded.text
             if is_yarn or looks_like_yarn(text):
-                return safe_write(out_path, translate_yarn_text(text, translations), encoding=encoding)
+                return self._write(out_path, translate_yarn_text(text, translations), decoded.encoding)
 
             stripped = text.lstrip("\ufeff").strip()
             if not is_yarn and stripped:
@@ -276,7 +285,7 @@ class StreamingAssetsParser(BaseParser):
                     continue
                 out_lines.append(line)
 
-            return safe_write(out_path, "".join(out_lines), encoding=encoding)
+            return self._write(out_path, "".join(out_lines), decoded.encoding)
         except Exception as exc:
             logger.error("Failed to apply translations to TXT %s: %s", in_path, exc)
             return False

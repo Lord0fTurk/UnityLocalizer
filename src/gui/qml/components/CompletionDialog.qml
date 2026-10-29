@@ -100,6 +100,7 @@ Popup {
 
             // Close button
             Button {
+                Accessible.name: root.t("common.close")
                 implicitWidth: 30
                 implicitHeight: 30
                 topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
@@ -254,8 +255,8 @@ Popup {
             visible: Boolean(root.summary && root.summary.show_support)
             implicitHeight: supportCol.implicitHeight + 20
             radius: Theme.radiusControl
-            color: Qt.rgba(244/255, 114/255, 182/255, 0.07)
-            border.color: Qt.rgba(244/255, 114/255, 182/255, 0.35)
+            color: Theme.supportAlpha(0.07)
+            border.color: Theme.supportAlpha(0.35)
             border.width: 1
 
             ColumnLayout {
@@ -268,7 +269,7 @@ Popup {
                     Layout.fillWidth: true
                     spacing: 10
 
-                    Icon { glyph: Icons.heart; size: 16; color: "#F472B6" }
+                    Icon { glyph: Icons.heart; size: 16; color: Theme.supportColor }
                     Text {
                         Layout.fillWidth: true
                         text: root.t("dashboard.completion_support_text")
@@ -277,14 +278,15 @@ Popup {
                         wrapMode: Text.WordWrap
                     }
                     Button {
+                        Accessible.name: root.t("dashboard.completion_support_btn")
                         id: supportBtn
                         implicitHeight: 28
                         implicitWidth: supportLabel.implicitWidth + 24
                         topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
                         background: Rectangle {
                             radius: Theme.radiusControl
-                            color: Qt.rgba(244/255, 114/255, 182/255, supportBtn.hovered ? 0.28 : 0.16)
-                            border.color: Qt.rgba(244/255, 114/255, 182/255, 0.6)
+                            color: Theme.supportAlpha(supportBtn.hovered ? 0.28 : 0.16)
+                            border.color: Theme.supportAlpha(0.6)
                             border.width: 1
                         }
                         contentItem: Text {
@@ -294,7 +296,7 @@ Popup {
                             text: root.t("dashboard.completion_support_btn")
                             font.pixelSize: 11
                             font.bold: true
-                            color: "#F472B6"
+                            color: Theme.supportColor
                         }
                         onClicked: Qt.openUrlExternally("https://www.patreon.com/cw/LordOfTurk")
                     }
@@ -310,10 +312,13 @@ Popup {
             }
         }
 
-        // 4. Action Buttons Row
-        RowLayout {
+        // 4. Action buttons: two per row, so every label has room (four in one row elided them in narrow dialogs)
+        GridLayout {
             Layout.fillWidth: true
-            spacing: 8
+            columns: 2
+            rowSpacing: 8
+            columnSpacing: 8
+            uniformCellWidths: true
 
             ActionButton {
                 id: btnLaunch
@@ -344,6 +349,8 @@ Popup {
 
             ActionButton {
                 id: btnDone
+                // Without the launch button three remain: the closing one takes the whole last row.
+                Layout.columnSpan: btnLaunch.visible ? 1 : 2
                 glyph: Icons.circleCheck
                 label: root.t("dashboard.completion_close")
                 filled: true
@@ -358,11 +365,11 @@ Popup {
         id: btn
         property string glyph: ""
         property string label: ""
+        Accessible.name: label
         property bool filled: false
         property color fillColor: Theme.accentSolid
 
         Layout.fillWidth: true
-        Layout.preferredWidth: implicitWidth
         Layout.minimumWidth: 0
         implicitHeight: Theme.heightSecondary
         implicitWidth: row.implicitWidth + 28

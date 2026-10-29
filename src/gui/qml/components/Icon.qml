@@ -6,7 +6,7 @@ Item {
     id: icon
     property string glyph: ""
     property int size: 16
-    property color color: "#F3F4F6"
+    property color color: Theme.textPrimary
 
     implicitWidth: size
     implicitHeight: size

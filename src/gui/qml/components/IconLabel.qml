@@ -7,7 +7,7 @@ Item {
     id: il
     property string glyph: ""
     property string text: ""
-    property color color: "#F3F4F6"
+    property color color: Theme.textPrimary
     property color iconColor: color
     property int iconSize: Math.round(label.font.pixelSize * 1.2)
     property int spacing: 6

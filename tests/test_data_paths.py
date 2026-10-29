@@ -301,3 +301,15 @@ def test_support_prompt_appears_from_the_third_finished_run_until_dismissed(back
     backend.setSetting("hide_support_prompt", True)
     backend._report_outcome(10)
     assert seen == [False, False, True, False]
+
+
+def test_an_installed_runtime_still_gets_the_runtime_fixes(backend: Any, tmp_path: Path, monkeypatch: Any) -> None:
+    import src.backend.app_backend as module
+    from src.core.progress import CancelToken
+
+    calls: list[tuple[Any, ...]] = []
+    monkeypatch.setattr(module.HookInstaller, "needs_install", classmethod(lambda cls, *a, **k: False))
+    monkeypatch.setattr(module.HookInstaller, "apply_runtime_fixes", staticmethod(lambda *a, **k: calls.append(a)))
+    backend.selectGame(str(_game(tmp_path)))
+    backend._ensure_runtime(CancelToken())
+    assert len(calls) == 1 and calls[0][2] is False  # (game dir, Unity version, is_il2cpp, progress)

@@ -5,8 +5,12 @@
 PyQt6>=6.7.0
 PyQt6-Qt6>=6.7.0
 
-# Unity Assets Parsing & Extraction
-UnityPy>=1.25.0
+# Unity Assets Parsing & Extraction. The ttgen extra adds TypeTreeGeneratorAPI (MIT, native), which
+# rebuilds stripped MonoBehaviour TypeTrees from the game's assemblies for field-aware harvesting.
+# If it cannot load a game (e.g. IL2CPP metadata v39) the harvester falls back to raw scanning.
+# 1.25.4 is the first release that reads the Unity 6000.5 serialized files of Situation Succ Inn Elysium
+# (1.25.3 fails with "iterative unpacking requires a buffer of a multiple of 32 bytes").
+UnityPy[ttgen]>=1.25.4
 
 # Archive extraction (TMP font AssetBundle archive is .7z)
 py7zr>=0.22.0
@@ -14,10 +18,6 @@ py7zr>=0.22.0
 # Static RTL shaping (Arabic letter joining + bidi visual reordering)
 arabic-reshaper>=3.0.0
 python-bidi>=0.6.0
-
-# Optional: rebuilds stripped MonoBehaviour TypeTrees for field-aware harvesting.
-# Without it the asset harvester falls back to raw length-prefixed scanning.
-# TypeTreeGeneratorAPI>=0.1.0
 
 # Translation Engines & AI APIs
 google-genai>=1.0.0
@@ -31,6 +31,15 @@ rapidfuzz>=3.9.0
 
 # Offline source-language detection (BSD-3-Clause)
 py3langid>=0.2.0
+
+# Text encoding detection for loose game files in Shift-JIS, GBK, UTF-16, ... (MIT; requests needs it too)
+charset-normalizer>=3.0.0
+
+# XML patching that keeps comments, CDATA sections and namespace declarations (BSD-3-Clause)
+lxml>=5.0.0
+
+# Free-memory check before an asset file is scanned (BSD-3-Clause; py7zr already needs it)
+psutil>=5.9.0
 
 # Testing
 pytest>=8.0.0

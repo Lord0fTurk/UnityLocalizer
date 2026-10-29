@@ -106,3 +106,91 @@ def test_plain_brackets_and_text_untouched() -> None:
     protected, tags = UnitySyntaxGuard.protect(text)
     assert tags == []
     assert protected == text
+
+
+@pytest.mark.parametrize(
+    "text, token",
+    [
+        ("<margin-left=1em>Indented</margin-left>", "<margin-left=1em>"),
+        ("<margin-right=10%>Text", "<margin-right=10%>"),
+        ("%1$s has %2$d gold", "%1$s"),
+        ("%2$d gold left", "%2$d"),
+        ("{count:plural:one item|{} items}", "{count:plural:one item|{} items}"),
+        ("{0:plural:{} coin|{} coins}", "{0:plural:{} coin|{} coins}"),
+        ("Total {0:{1}}", "{0:{1}}"),
+    ],
+)
+def test_nested_and_positional_tokens_are_protected_whole(text: str, token: str) -> None:
+    protected, tags = UnitySyntaxGuard.protect(text)
+    assert token in tags
+    assert token not in protected
+    assert UnitySyntaxGuard.restore(protected, tags) == text
+
+
+def test_dropped_plural_structure_fails_integrity() -> None:
+    ok, _ = UnitySyntaxGuard.validate_integrity(
+        "You have {0} {0:plural:coin|coins}", "Elinde {0} jeton var"
+    )
+    assert ok is False
+
+
+@pytest.fixture
+def reset_protected_terms():
+    from src.core.syntax_guard import set_protected_terms
+
+    yield set_protected_terms
+    set_protected_terms([])
+
+
+@pytest.mark.parametrize(
+    "text, term",
+    [
+        ("アルスは勇者だ", "アルス"),
+        ("勇者アルス", "アルス"),
+        ("艾尔来了", "艾尔"),
+        ("Aliceは勇者だ", "Alice"),
+        ("Alice's sword", "Alice"),
+        ("Alice,Bob", "Alice"),
+    ],
+)
+def test_protected_terms_match_inside_unspaced_scripts(reset_protected_terms, text: str, term: str) -> None:
+    reset_protected_terms([term])
+    protected, tags = UnitySyntaxGuard.protect(text)
+    assert tags == [term]
+    assert UnitySyntaxGuard.restore(protected, tags) == text
+
+
+@pytest.mark.parametrize("text", ["Malice in wonderland", "Alicent waits", "Alice_2 is here"])
+def test_latin_terms_still_need_word_boundaries(reset_protected_terms, text: str) -> None:
+    reset_protected_terms(["Alice"])
+    assert UnitySyntaxGuard.protect(text)[1] == []
+
+
+@pytest.mark.parametrize(
+    "mangled",
+    [
+        "［ULPH_0］嗨［ULPH_1］ ［ULPH_2］",
+        "【ULPH_0】嗨【ULPH_1】 【ULPH_2】",
+        "«ULPH_0»Hi«ULPH_1» «ULPH_2»",
+        "ULPH_0 Hi ULPH_1 ULPH_2",
+        "⟦ULPH 0⟧Hi⟦ULPH 1⟧ ⟦ULPH 2⟧",
+    ],
+)
+def test_fuzzy_recovery_other_bracket_styles(mangled: str) -> None:
+    original = "<b>Hi</b> {0}"
+    _, tags = UnitySyntaxGuard.protect(original)
+    restored = UnitySyntaxGuard.restore(mangled, tags)
+    assert "ULPH" not in restored
+    assert [t for t in tags if t in restored] == tags
+
+
+def test_fuzzy_recovery_never_eats_a_lone_bracket() -> None:
+    _, tags = UnitySyntaxGuard.protect("Hi {0}")
+    restored = UnitySyntaxGuard.restore("「Merhaba」 ULPH_0", tags)
+    assert restored == "「Merhaba」 {0}"
+    assert UnitySyntaxGuard.restore("「ULPH_0 selam", tags) == "「{0} selam"
+
+
+def test_fuzzy_recovery_ignores_out_of_range_index() -> None:
+    _, tags = UnitySyntaxGuard.protect("Hi {0}")
+    assert UnitySyntaxGuard.restore("ULPH_7 selam", tags) == "ULPH_7 selam"

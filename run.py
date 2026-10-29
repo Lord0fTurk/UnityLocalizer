@@ -6,6 +6,7 @@ High-performance localization automation suite for Unity games.
 
 from __future__ import annotations
 
+import multiprocessing
 import os
 import sys
 import warnings
@@ -50,6 +51,7 @@ from src.backend.locale_manager import LocaleManager
 from src.utils.logger import setup_logger
 from src.utils.data_migration import migrate_legacy_data
 from src.utils.paths import get_data_dir, resource_path
+from src.utils.ui_scale import apply_ui_scale
 
 logger = setup_logger()
 
@@ -83,6 +85,7 @@ def main() -> int:
         return 1 if failures else 0
 
     logger.info("Starting UnityLocalizer...")
+    apply_ui_scale()  # Qt reads QT_SCALE_FACTOR only while the application object is created
     app = QGuiApplication(sys.argv)
     app.setApplicationName("UnityLocalizer")
     app.setOrganizationName("UnityLocalizer")
@@ -197,4 +200,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()  # the asset scan worker is a spawned process (frozen builds need this)
     sys.exit(main())

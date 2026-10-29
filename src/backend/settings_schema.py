@@ -13,6 +13,7 @@ from typing import Any
 
 from src.core.translators.ai_translator import GEMINI_SAFETY_LEVELS
 from src.core.translators.deepl import FORMALITY_VALUES
+from src.utils.ui_scale import UI_SCALE_CHOICES
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,7 @@ SETTING_SPECS: dict[str, SettingSpec] = {
     "font_preset": SettingSpec(str, choices=("default_arial", "custom_ttf", "system_font")),
     "theme_mode": SettingSpec(str, choices=("obsidian", "daylight", "cyber_neon")),
     "accent_preset": SettingSpec(str, choices=("cyan", "emerald", "indigo", "amber")),
+    "ui_scale": SettingSpec(str, choices=UI_SCALE_CHOICES),
     "bilingual_mode": _BOOL,
     "bilingual_template": _TEXT,
     # Engines
@@ -88,6 +90,15 @@ SETTING_SPECS: dict[str, SettingSpec] = {
     "ai_custom_prompt": _TEXT,
     # Terminology & memory
     "protected_terms": _TEXT,
+    "harvest_assets": _BOOL,
+    "harvest_code": _BOOL,
+    "harvest_streaming": _BOOL,
+    "harvest_localization": _BOOL,
+    "harvest_memory_guard": _BOOL,
+    "harvest_isolated": _BOOL,
+    "harvest_split_data_lines": _BOOL,
+    "ignore_rules": _TEXT,
+    "ignore_engine_placeholders": _BOOL,
     "tm_enabled": _BOOL,
     "tm_files": _TEXT,
     "tm_fuzzy": _BOOL,

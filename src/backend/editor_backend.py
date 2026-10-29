@@ -59,6 +59,7 @@ def _row_to_qml(row: ReviewRow) -> dict[str, Any]:
         "status": row.status,
         "errors": describe_issues(row.issues),
         "dirty": row.dirty,
+        "source": row.source,
     }
 
 
@@ -82,6 +83,8 @@ class EditorBackend(QObject):
         self._store: ReviewStore | None = None
         self._filter_query: str = ""
         self._status_filter: str = ""
+        self._source_filter: str = ""
+        self._sources: list[dict[str, Any]] = []
         self._page: int = 1
         self._match_count: int = 0
         self._page_rows: list[dict[str, Any]] = []
@@ -96,6 +99,7 @@ class EditorBackend(QObject):
         self._session = session
         self._store = ReviewStore(session) if session is not None else None
         self._status_filter = ""
+        self._source_filter = ""
         self._filter_query = ""
         self._page = 1
         self._selected_id = -1
@@ -106,13 +110,18 @@ class EditorBackend(QObject):
         store, session = self._store, self._session
         if store is None or session is None:
             self._counts = dict.fromkeys(ALL_FILTERS, 0)
+            self._sources = []
             self._match_count, self._page_rows, self._page, self._selected_id = 0, [], 1, -1
         else:
             self._counts = store.counts()
-            self._match_count = store.count(self._status_filter, self._filter_query)
+            self._sources = [
+                {"key": name, "count": number, "labelKey": f"settings.channel_{name}_label"}
+                for name, number in store.sources().items()
+            ]
+            self._match_count = store.count(self._status_filter, self._filter_query, self._source_filter)
             pages = self.pageCount
             self._page = max(1, min(self._page, pages))
-            ids = store.page(self._status_filter, self._filter_query, self._page, PAGE_SIZE)
+            ids = store.page(self._status_filter, self._filter_query, self._page, PAGE_SIZE, self._source_filter)
             self._page_rows = [_row_to_qml(session.rows[i]) for i in ids]
             if self._selected_id not in ids:
                 self._selected_id = ids[0] if ids else -1
@@ -178,6 +187,16 @@ class EditorBackend(QObject):
     def statusFilter(self) -> str:
         return self._status_filter
 
+    @pyqtProperty(str, notify=dataChanged)
+    def sourceFilter(self) -> str:
+        """Harvest channel the list is limited to ('' = every source)."""
+        return self._source_filter
+
+    @pyqtProperty(list, notify=statsUpdated)
+    def sources(self) -> list[dict[str, Any]]:
+        """Known harvest channels with their row counts, for the source chips."""
+        return self._sources
+
     @pyqtProperty("QVariantMap", notify=selectedChanged)
     def selected(self) -> dict[str, Any]:
         """The row being edited: texts, status, issues, placeholders and tags of its source."""
@@ -238,6 +257,36 @@ class EditorBackend(QObject):
         self._page = 1
         self._refresh()
 
+    @pyqtSlot(str)
+    def setSourceFilter(self, source: str) -> None:
+        known = {entry["key"] for entry in self._sources}
+        self._source_filter = source if source in known else ""
+        self._page = 1
+        self._refresh()
+
+    @pyqtSlot(result=int)
+    def excludeShown(self) -> int:
+        """Leave every row matching the current filters out of the game dictionary (until saved)."""
+        return self._set_shown_excluded(True)
+
+    @pyqtSlot(result=int)
+    def includeShown(self) -> int:
+        """Put the left-out rows matching the current filters back."""
+        return self._set_shown_excluded(False)
+
+    def _set_shown_excluded(self, exclude: bool) -> int:
+        if self._session is None or self._store is None:
+            return 0
+        ids = self._store.ids(self._status_filter, self._filter_query, self._source_filter)
+        rows = self._session.exclude(ids) if exclude else self._session.include(ids)
+        self._store.refresh_many(rows)
+        self._refresh()
+        self.toastRequested.emit(
+            _t("editor.excluded" if exclude else "editor.included", count=len(rows)),
+            "success" if rows else "info",
+        )
+        return len(rows)
+
     @pyqtSlot(int)
     def setPage(self, page: int) -> None:
         self._page = max(1, min(page, self.pageCount))
@@ -286,7 +335,9 @@ class EditorBackend(QObject):
         """Replace in the translations matching the current filter and search; returns rows changed."""
         if self._session is None or self._store is None or not find:
             return 0
-        count = self._store.replace_all(find, replace, match_case, self._status_filter, self._filter_query)
+        count = self._store.replace_all(
+            find, replace, match_case, self._status_filter, self._filter_query, source=self._source_filter
+        )
         self._refresh()
         self.toastRequested.emit(_t("editor.replaced", count=count), "success" if count else "info")
         return count
@@ -317,7 +368,7 @@ class EditorBackend(QObject):
         """Refresh counts and the visible row after one edit, without moving the page or the selection."""
         assert self._store is not None
         self._counts = self._store.counts()
-        self._match_count = self._store.count(self._status_filter, self._filter_query)
+        self._match_count = self._store.count(self._status_filter, self._filter_query, self._source_filter)
         self._replace_in_page(row)
         self.dataChanged.emit()
         self.statsUpdated.emit()

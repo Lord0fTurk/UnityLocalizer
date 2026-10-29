@@ -12,11 +12,14 @@ logger = logging.getLogger(__name__)
 
 # Unity uGUI / TextMeshPro RichText tag names (longest first so prefixes never shadow).
 _RICHTEXT_TAGS = (
-    "line-height|line-indent|font-weight|lowercase|uppercase|smallcaps|allcaps|"
+    "margin-left|margin-right|line-height|line-indent|font-weight|lowercase|uppercase|smallcaps|allcaps|"
     "material|gradient|voffset|noparse|mspace|indent|margin|rotate|sprite|"
     "cspace|style|align|alpha|color|space|width|nobr|link|mark|page|quad|font|"
     "size|pos|sup|sub|br|b|i|u|s"
 )
+
+# Body of a format item after ':': plain characters or one balanced {...} group.
+_FORMAT_BODY = r"(?:[^{}]|\{[^{}]*\})*"
 
 # Unity RichText tags & C# format placeholders pattern (order matters: first match wins)
 _UNITY_TAG_PATTERNS = [
@@ -26,21 +29,32 @@ _UNITY_TAG_PATTERNS = [
     r"<#[0-9a-fA-F]{3,8}>",
     # Escaped literal braces in string.Format ({{ and }})
     r"\{\{|\}\}",
-    # Indexed C# format items with alignment/format (e.g. {0}, {0,-10}, {1:N2}, {2,5:0.00})
-    r"\{\d+(?:\s*,\s*-?\d+)?(?::[^{}]*)?\}",
+    # Indexed C# format items with alignment/format (e.g. {0}, {0,-10}, {1:N2}, {2,5:0.00}); the
+    # format part may hold one nested level so Smart String plurals ({0:plural:{} item|{} items}) stay whole
+    rf"\{{\d+(?:\s*,\s*-?\d+)?(?::{_FORMAT_BODY})?\}}",
     # Named / dotted / Smart String / Ink-Yarn / I2 params (e.g. {playerName}, {player.name}, {$gold}, {[PARAM]})
-    r"\{(?:\$?[A-Za-z_][\w.\[\]]*|\[[\w.]+\])(?::[^{}]*)?\}",
+    rf"\{{(?:\$?[A-Za-z_][\w.\[\]]*|\[[\w.]+\])(?::{_FORMAT_BODY})?\}}",
     # NGUI BBCode colors and styles (e.g. [ff0000], [-], [b], [/b], [url=x])
     r"\[(?:[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?|-|/?(?:b|i|u|s|c|sub|sup|url(?:=[^\]]*)?))\]",
-    # Printf style format specifiers (e.g. %s, %5d, %.2f)
-    r"%-?\d*(?:\.\d+)?[sdifxX]",
+    # Game directives in square brackets (e.g. [pic=39], [picc=12], [wait=0.5]): a name, '=' and a short
+    # value without spaces. An engine would translate the name ("[resim=39]") and the game would not know it.
+    r"\[[A-Za-z_][A-Za-z0-9_]*=[^\]\s]{1,64}\]",
+    # Printf style format specifiers (e.g. %s, %5d, %.2f, positional %1$s)
+    r"%(?:\d+\$)?-?\d*(?:\.\d+)?[sdifxX]",
     # Common escape sequences
     r"\\n|\\r|\\t",
 ]
 
 UNITY_PROTECT_RE = re.compile("|".join(_UNITY_TAG_PATTERNS), re.IGNORECASE)
 TOKEN_RE = re.compile(r"⟦ULPH_(\d+)⟧")
-TOKEN_FUZZY_RE = re.compile(r"[⟦\[\(\{]\s*ULPH_(\d+)\s*[⟧\]\)\}]", re.IGNORECASE)
+# Engines (CJK targets especially) swap ⟦ ⟧ for other brackets. Recovery is deliberately narrow:
+# either a complete bracket pair around the token, or a bare ``ULPH_N``. A lone bracket is never
+# consumed, so a legitimate quote such as 「…」 next to a mangled token is not eaten.
+_FUZZY_OPEN = r"⟦\[\(\{［（｛【〔「『《«‹⟪<＜"
+_FUZZY_CLOSE = r"⟧\]\)\}］）｝】〕」』》»›⟫>＞"
+TOKEN_FUZZY_RE = re.compile(
+    rf"[{_FUZZY_OPEN}]\s*ULPH[_＿\s-]*(\d+)\s*[{_FUZZY_CLOSE}]|(?<!\w)ULPH_(\d+)(?!\d)", re.IGNORECASE
+)
 LEAKED_TOKEN_RE = re.compile(r"ULPH_\d+|<ph\s+id=", re.IGNORECASE)
 
 _state_lock = threading.RLock()
@@ -57,8 +71,25 @@ def _clean_terms(terms: list[str] | tuple[str, ...] | set[str]) -> list[str]:
     return sorted({t.strip() for t in terms if t and t.strip()}, key=len, reverse=True)
 
 
+# Scripts written without spaces: a name there is adjacent to other letters by nature.
+_UNSPACED_SCRIPTS = "぀-ヿ㐀-䶿一-鿿가-힯฀-๿"
+_UNSPACED_RE = re.compile(f"[{_UNSPACED_SCRIPTS}]")
+
+
+def _term_pattern(term: str) -> str:
+    """Whole-word pattern; terms in unspaced scripts match anywhere, others stop at foreign letters.
+
+    ``\\w`` also covers kana and Han, so "Alice" in "Aliceは" or "アルス" in "アルスは勇者だ"
+    would never match a plain ``(?<!\\w)…(?!\\w)`` boundary.
+    """
+    escaped = re.escape(term)
+    if _UNSPACED_RE.search(term):
+        return escaped
+    return rf"(?:(?<!\w)|(?<=[{_UNSPACED_SCRIPTS}])){escaped}(?:(?!\w)|(?=[{_UNSPACED_SCRIPTS}]))"
+
+
 def _whole_words(terms: list[str]) -> str:
-    return "|".join(rf"(?<!\w){re.escape(t)}(?!\w)" for t in terms)
+    return "|".join(_term_pattern(t) for t in terms)
 
 
 def set_protected_terms(
@@ -174,7 +205,7 @@ class UnitySyntaxGuard:
         result = translated_text
 
         def _restore_match(m: re.Match[str]) -> str:
-            idx = int(m.group(1))
+            idx = int(next(group for group in m.groups() if group is not None))
             return tags[idx] if 0 <= idx < len(tags) else m.group(0)
 
         if mode == "xml":
@@ -188,7 +219,7 @@ class UnitySyntaxGuard:
         result = TOKEN_RE.sub(_restore_match, result)
 
         # Fuzzy recovery for tokens spaced or bracket-mangled by machine engines
-        if "ulph_" in result.lower():
+        if "ulph" in result.lower():
             result = TOKEN_FUZZY_RE.sub(_restore_match, result)
 
         return result

@@ -57,6 +57,56 @@ def _language_detection() -> None:
         raise RuntimeError(f"Offline language model gave {result!r} for English text")
 
 
+def _typetree_generator() -> None:
+    from UnityPy.helpers.TypeTreeGenerator import TypeTreeGenerator
+
+    TypeTreeGenerator("2022.3.0f1")  # raises ImportError when the native TypeTreeGeneratorAPI is missing
+
+
+def _memory_guard() -> None:
+    import lz4.block  # noqa: F401  (bundle blocks)
+    import lzma  # noqa: F401  (LZMA bundles)
+
+    from src.core.harvesters.bundle_unpack import unpack_nodes  # noqa: F401
+    from src.core.harvesters.memory_guard import available_memory
+
+    if not available_memory():
+        raise RuntimeError("psutil could not report the available memory")
+
+
+def _scan_worker() -> None:
+    """The asset scan runs in a spawned child process: start one on an empty folder and get its answer."""
+    import tempfile
+    from pathlib import Path
+
+    from src.core.engine_profiler import UnityGameProfile
+    from src.core.harvesters.asset_worker import scan_assets_isolated
+
+    with tempfile.TemporaryDirectory() as folder:
+        data = Path(folder) / "Game_Data"
+        data.mkdir()
+        if scan_assets_isolated(UnityGameProfile(game_path=Path(folder), data_dir=data)) != []:
+            raise RuntimeError("the scan worker returned text for an empty folder")
+
+
+def _text_encoding() -> None:
+    from src.core.parsers.text_encoding import decode_bytes
+
+    sample = "ゲームを始める。ようこそ、旅人よ。" * 4
+    decoded = decode_bytes(sample.encode("cp932"), "ja")
+    if decoded is None or decoded.text != sample:
+        raise RuntimeError("Shift-JIS text was not decoded; charset-normalizer is broken or missing")
+
+
+def _xml_patching() -> None:
+    from src.core.parsers.xml_text import translate_xml
+
+    source = '<?xml version="1.0"?><r xmlns:x="urn:x"><!-- c --><i><![CDATA[Hello <b>there</b>]]></i></r>'
+    patched = translate_xml(source, {"Hello <b>there</b>": "Merhaba"})
+    if patched is None or "<!-- c -->" not in patched or "<![CDATA[Merhaba]]>" not in patched:
+        raise RuntimeError(f"lxml did not keep the comment and CDATA section: {patched!r}")
+
+
 def _ui_resources() -> None:
     from src.utils.paths import resource_path
 
@@ -67,11 +117,16 @@ def _ui_resources() -> None:
 
 CHECKS: dict[str, Callable[[], None]] = {
     "unitypy-class-database": _unitypy_class_database,
+    "typetree-generator": _typetree_generator,
+    "memory-guard": _memory_guard,
+    "scan-worker": _scan_worker,
     "archives": _archives,
     "rtl-shaping": _rtl_shaping,
     "binary-readers": _binary_readers,
     "translation-engines": _engines,
     "language-detection": _language_detection,
+    "text-encoding": _text_encoding,
+    "xml-patching": _xml_patching,
     "ui-resources": _ui_resources,
 }
 

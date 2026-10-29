@@ -19,6 +19,17 @@ ColumnLayout {
     Layout.fillWidth: true
     spacing: 4
 
+    // Writes the typed value, then shows what the backend really kept: it trims text, clamps
+    // numbers and refuses garbage, and a refused edit must not stay on screen as if it were saved.
+    function commit() {
+        if (!appBackend || input.text === field.storedValue) return;
+        var before = field.storedValue;
+        appBackend.setSetting(field.key, input.text);
+        var kept = field.storedValue;
+        if (input.text !== kept) input.text = kept;
+        feedback.show(kept !== before);
+    }
+
     Label {
         visible: field.label.length > 0
         text: field.label
@@ -33,7 +44,7 @@ ColumnLayout {
         Layout.fillWidth: true
         Layout.preferredHeight: Theme.heightInput
         leftPadding: 12
-        rightPadding: 12
+        rightPadding: 34
         verticalAlignment: TextInput.AlignVCenter
         placeholderTextColor: Theme.textMuted
         selectionColor: Theme.accentAlpha(0.35)
@@ -48,14 +59,37 @@ ColumnLayout {
             border.color: input.activeFocus ? Theme.borderFocus : Theme.borderControl
             border.width: 1
         }
-        onEditingFinished: {
-            if (appBackend && text !== field.storedValue) appBackend.setSetting(field.key, text);
-        }
-        onActiveFocusChanged: {
-            if (!activeFocus && appBackend && text !== field.storedValue) appBackend.setSetting(field.key, text);
-        }
+        onEditingFinished: field.commit()
+        onActiveFocusChanged: { if (!activeFocus) field.commit(); }
         Component.onDestruction: {
             if (appBackend && text !== field.storedValue) appBackend.setSetting(field.key, text);
+        }
+
+        // Decorative status mark: a check after a save, an alert when the edit was not kept.
+        Icon {
+            id: feedback
+            property bool accepted: true
+            anchors.right: parent.right
+            anchors.rightMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+            glyph: accepted ? Icons.circleCheck : Icons.triangleAlert
+            color: accepted ? Theme.statusSuccess : Theme.statusDanger
+            size: 16
+            opacity: 0
+            Accessible.ignored: true
+
+            function show(ok) {
+                accepted = ok;
+                opacity = 1;
+                fade.restart();
+            }
+
+            Behavior on opacity { NumberAnimation { duration: 250 } }
+            Timer {
+                id: fade
+                interval: 1600
+                onTriggered: feedback.opacity = 0
+            }
         }
     }
 

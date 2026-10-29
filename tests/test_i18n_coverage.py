@@ -23,12 +23,15 @@ _ALLOWED = {
     "AIzaSy...", "sk-...", "gemini-2.5-flash", "gpt-4o-mini", "qwen2.5:latest", "Arial",
     "http://localhost:11434", "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx", "icon.png",
     "rejected", "invalid", "failed", "edited", "accepted", "unchanged", "repaired", "modified", "warnings",
+    "excluded",
     "ALL", "INFO", "SUCCESS", "WARNING", "WARN", "ERROR",
     "Consolas, 'Cascadia Code', monospace", "english", "native",
 }
 # Keys composed at runtime ("prefix" + value) in QML or the backend.
 _DYNAMIC_KEYS = [
-    *(f"editor.status_{s}" for s in ("accepted", "repaired", "edited", "rejected", "invalid", "failed", "unchanged")),
+    *(f"editor.status_{s}" for s in ("accepted", "repaired", "edited", "rejected", "invalid", "failed", "unchanged", "excluded")),
+    # EditorBackend source chips: one label per harvest channel.
+    *(f"settings.channel_{c}_label" for c in ("assets", "code", "streaming", "localization")),
     *(f"editor.issue_{c}" for c in ("leaked", "missing", "unexpected")),
     *(f"engines.{e}" for e in ("google", "bing", "deepl", "gemini", "openai", "deepseek", "local_llm")),
     *(f"console.filter_{lvl}" for lvl in ("info", "success", "warn", "error")),

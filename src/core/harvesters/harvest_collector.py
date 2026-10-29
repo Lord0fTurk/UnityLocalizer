@@ -4,13 +4,16 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from src.core.engine_profiler import UnityGameProfile
 from src.core.harvesters.asset_harvester import AssetHarvester
 from src.core.harvesters.assembly_harvester import AssemblyHarvester
+from src.core.harvesters.asset_worker import scan_assets_isolated
 from src.core.harvesters.harvest_stats import HarvestStats
+from src.core.harvesters.memory_guard import MemoryGuard
 from src.core.harvesters.metadata_harvester import MetadataHarvester
 from src.core.harvesters.typetree_provider import create_typetree_generator
 from src.core.parsers.streaming_assets import SUPPORTED_SUFFIXES, StreamingAssetsParser
@@ -26,18 +29,41 @@ class HarvestResult:
     strings: list[str] = field(default_factory=list)
     streaming_files: list[Path] = field(default_factory=list)
     per_channel: dict[str, int] = field(default_factory=dict)
+    # String -> first channel (see ``CHANNELS``) that produced it, for the review editor.
+    sources: dict[str, str] = field(default_factory=dict)
     stats: HarvestStats = field(default_factory=HarvestStats)
 
 
-class HarvestCollector:
-    """Runs asset, code and StreamingAssets harvesters for a profiled game."""
+CHANNELS: tuple[str, ...] = ("assets", "code", "streaming", "localization")
 
-    def __init__(self, progress: ProgressCallback | None = None, source_lang: str = "en") -> None:
+
+class HarvestCollector:
+    """Runs asset, code and StreamingAssets harvesters for a profiled game.
+
+    ``isolated`` scans the assets in a child process (instant Stop, see ``asset_worker``).
+    ``skip_channels`` names channels (see ``CHANNELS``) that are not read at all, so none
+    of their strings reach translation. A skipped channel reports zero strings.
+    """
+
+    def __init__(
+        self,
+        progress: ProgressCallback | None = None,
+        source_lang: str = "en",
+        skip_channels: Iterable[str] = (),
+        memory_guard: bool = True,
+        isolated: bool = False,
+    ) -> None:
         self.progress = progress
         self.source_lang = source_lang
+        self.skip_channels = frozenset(skip_channels)
+        self.memory_guard = memory_guard
+        self.isolated = isolated
+        unknown = self.skip_channels - set(CHANNELS)
+        if unknown:
+            raise ValueError(f"Unknown harvest channel(s): {', '.join(sorted(unknown))}")
 
     def collect(self, profile: UnityGameProfile, cancel: CancelToken | None = None) -> HarvestResult:
-        """Harvest all channels and return the merged result (cancellable between channels)."""
+        """Harvest all enabled channels and return the merged result (cancellable between channels)."""
         pool: dict[str, None] = {}
         result = HarvestResult()
         channels = (
@@ -48,12 +74,21 @@ class HarvestCollector:
         )
         for index, (name, harvester) in enumerate(channels, start=1):
             checkpoint(cancel)
+            if name in self.skip_channels:
+                result.per_channel[name] = 0
+                continue
             emit(self.progress, f"pipeline.harvest_{name}", index, len(channels))
             strings = harvester(profile)
             result.per_channel[name] = len(strings)
             pool.update(dict.fromkeys(strings))
+            for text in strings:
+                result.sources.setdefault(text, name)
+        if self.skip_channels:
+            logger.info("Harvest channels skipped by the user: %s", ", ".join(sorted(self.skip_channels)))
         result.strings = list(pool)
-        result.stats.encrypted_code = profile.is_il2cpp and profile.metadata_encrypted
+        result.stats.encrypted_code = (
+            "code" not in self.skip_channels and profile.is_il2cpp and profile.metadata_encrypted
+        )
         emit(self.progress, "pipeline.harvest_done", len(channels), len(channels), count=len(pool))
         logger.info("Harvest per channel: %s", result.per_channel)
         return result
@@ -64,9 +99,15 @@ class HarvestCollector:
         """Scenes, shared assets, data.unity3d and AssetBundles (per-file progress and cancel)."""
         if not profile.data_dir:
             return []
+        if self.isolated:
+            return scan_assets_isolated(
+                profile, self.source_lang, memory_guard=self.memory_guard, progress=self.progress, cancel=cancel,
+                stats=stats,
+            )
         generator = create_typetree_generator(profile)
         return AssetHarvester.harvest_data_dir(
-            profile.data_dir, self.source_lang, generator, progress=self.progress, cancel=cancel, stats=stats
+            profile.data_dir, self.source_lang, generator, progress=self.progress, cancel=cancel, stats=stats,
+            memory_guard=MemoryGuard(enabled=self.memory_guard),
         )
 
     @staticmethod

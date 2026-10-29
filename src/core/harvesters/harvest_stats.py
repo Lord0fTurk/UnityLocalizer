@@ -8,12 +8,27 @@ coverage warnings shown to the user ("some text may be missing").
 
 from __future__ import annotations
 
+import logging
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 # A file listed in the report only when it needs attention; clean files are just counted.
 _REPORT_FILE_LIMIT = 50
+
+
+def process_peak_bytes() -> int:
+    """Peak memory of this process so far (peak working set on Windows, current RSS elsewhere); 0 if unknown."""
+    try:
+        import psutil
+
+        info = psutil.Process().memory_info()
+        return int(getattr(info, "peak_wset", info.rss))
+    except Exception as exc:  # psutil missing or the OS refuses the query: the report just lacks the figure
+        logger.debug("Process memory is unknown: %s", exc)
+        return 0
 
 
 @dataclass
@@ -25,6 +40,15 @@ class FileStat:
     failed: bool = False
     # MonoBehaviours read by rough raw scanning because no TypeTree was available.
     raw_scanned: int = 0
+    # Left unread because unpacking it would not fit in the memory that was free (see MemoryGuard).
+    skipped_for_memory: bool = False
+    disk_bytes: int = 0
+    peak_bytes: int = 0
+    available_bytes: int = 0
+    # Wall-clock time of the scan and the process's peak memory so far (a running maximum: a jump
+    # between two files points at the file that caused it); 0 when not measured.
+    seconds: float = 0.0
+    process_peak_bytes: int = 0
 
 
 @dataclass
@@ -43,6 +67,10 @@ class HarvestStats:
     @property
     def files_failed(self) -> list[str]:
         return [f.name for f in self.files if f.failed]
+
+    @property
+    def files_skipped_for_memory(self) -> list[FileStat]:
+        return [f for f in self.files if f.skipped_for_memory]
 
     @property
     def raw_scanned_objects(self) -> int:
@@ -69,10 +97,21 @@ class HarvestStats:
 
     def to_report(self) -> dict[str, Any]:
         """JSON-serializable summary for the diagnostics file."""
-        interesting = [f for f in self.files if f.failed or f.raw_scanned]
+        interesting = [f for f in self.files if f.failed or f.raw_scanned or f.skipped_for_memory]
         return {
             "files_scanned": len(self.files),
             "files_failed": self.files_failed,
+            "files_skipped_for_memory": [
+                {
+                    "name": f.name, "size_mb": round(f.disk_bytes / 2**20), "expected_peak_mb": round(f.peak_bytes / 2**20),
+                    "free_memory_mb": round(f.available_bytes / 2**20),
+                }
+                for f in self.files_skipped_for_memory
+            ],
+            "slowest_files": [
+                {"name": f.name, "seconds": round(f.seconds, 2), "process_peak_mb": round(f.process_peak_bytes / 2**20)}
+                for f in sorted(self.files, key=lambda f: f.seconds, reverse=True)[:5] if f.seconds
+            ],
             "raw_scanned_objects": self.raw_scanned_objects,
             "string_tables_matched": self.tables_matched,
             "string_tables_skipped_by_locale": dict(self.tables_skipped),
@@ -80,7 +119,11 @@ class HarvestStats:
             "i2_source_language_not_found": self.i2_unmatched,
             "code_strings_unavailable": self.encrypted_code,
             "files": [
-                {"name": f.name, "strings": f.strings, "failed": f.failed, "raw_scanned_objects": f.raw_scanned}
+                {
+                    "name": f.name, "strings": f.strings, "failed": f.failed, "raw_scanned_objects": f.raw_scanned,
+                    "skipped_for_memory": f.skipped_for_memory, "seconds": round(f.seconds, 2),
+                    "process_peak_mb": round(f.process_peak_bytes / 2**20),
+                }
                 for f in (interesting + [f for f in self.files if f not in interesting])[:_REPORT_FILE_LIMIT]
             ],
         }

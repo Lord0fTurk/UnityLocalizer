@@ -17,6 +17,7 @@ import re
 from pathlib import Path
 
 from src.core.parsers.base import BaseParser
+from src.core.parsers.text_encoding import UnencodableTextError, decode_file
 from src.utils.file_ops import pristine_source, safe_write
 
 logger = logging.getLogger(__name__)
@@ -79,17 +80,19 @@ def translate_line(line: str, translations: dict[str, str]) -> str:
 class NaninovelParser(BaseParser):
     """Parses and localizes Naninovel visual novel scripts (.nani)."""
 
+    def __init__(self, source_lang: str = "") -> None:
+        # Tells Shift-JIS, GBK and Korean scripts apart when the encoding has to be detected.
+        self.source_lang = source_lang
+
     def extract_strings(self, file_path: Path | str) -> list[str]:
         """Extract dialogue text and choice labels (from the original backup once patched)."""
         path = Path(file_path)
         if not path.is_file():
             return []
-        try:
-            text = pristine_source(path).read_text(encoding="utf-8-sig", errors="replace")
-        except OSError as exc:
-            logger.error("Failed to read Naninovel script %s: %s", path, exc)
+        decoded = decode_file(pristine_source(path), self.source_lang)
+        if decoded is None:
             return []
-        return [s for line in text.splitlines() for s in line_strings(line)]
+        return [s for line in decoded.text.splitlines() for s in line_strings(line)]
 
     def apply_translations(
         self,
@@ -101,16 +104,17 @@ class NaninovelParser(BaseParser):
         path = Path(file_path)
         out_path = Path(output_path) if output_path else path
         source = pristine_source(path)
+        decoded = decode_file(source, self.source_lang)
+        if decoded is None:
+            return False
+        lines = decoded.text.splitlines(keepends=True)
         try:
-            with open(source, "rb") as raw_f:
-                encoding = "utf-8-sig" if raw_f.read(3) == b"\xef\xbb\xbf" else "utf-8"
-            with open(source, "r", encoding="utf-8-sig", errors="replace", newline="") as f:
-                lines = f.read().splitlines(keepends=True)
-            return safe_write(
-                out_path,
-                "".join(translate_line(line, translations) for line in lines),
-                encoding=encoding,
-            )
+            data = decoded.encoding.encode("".join(translate_line(line, translations) for line in lines))
+        except UnencodableTextError as exc:
+            logger.warning("Left %s unpatched: %s", path.name, exc)
+            return False
+        try:
+            return safe_write(out_path, data)
         except OSError as exc:
             logger.error("Failed to apply translations to Naninovel script %s: %s", path, exc)
             return False

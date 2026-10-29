@@ -3,23 +3,34 @@
 
 from __future__ import annotations
 
+import contextlib
 import gc
 import logging
 import re
 import struct
+import time
+from collections.abc import Callable, Collection, Iterator
 from pathlib import Path
 from typing import Any
 
 from src.core.cjk import is_single_cjk
+from src.core.harvesters.bundle_header import BundleLayout, read_layout
 from src.core.harvesters.bundle_locator import find_serialized_sources
-from src.core.harvesters.harvest_stats import FileStat, HarvestStats
+from src.core.harvesters.bundle_unpack import peak_unpack_bytes, unpack_nodes
+from src.core.harvesters.harvest_stats import FileStat, HarvestStats, process_peak_bytes
+from src.core.harvesters.memory_guard import FileAssessment, MemoryGuard, format_size
 from src.core.harvesters.text_filter import looks_technical
 from src.core.harvesters.typetree_text import collect_display_strings, has_user_fields
 from src.core.parsers.text_formats import sniff_and_extract
 from src.core.progress import CancelToken, ProgressCallback, checkpoint, emit
 from src.core.syntax_guard import UNITY_PROTECT_RE
+from src.utils.native_output import discard_native_stdout
 
 logger = logging.getLogger(__name__)
+
+# Collecting cyclic garbage walks the whole heap (tens of milliseconds with UnityPy's class database
+# loaded): only worth it to give memory back after a big file.
+_COLLECT_ABOVE = 8 * 2**20
 
 HARVESTED_TYPES = frozenset({"TextAsset", "TextMesh", "MonoBehaviour"})
 _SURROGATE_RE = re.compile("[\ud800-\udfff]")
@@ -44,14 +55,43 @@ def _first_attr(data: Any, *names: str) -> Any:
     return None
 
 
+# MonoBehaviour header: PPtr m_GameObject (4 + 8 bytes), m_Enabled (1 byte padded to 4), PPtr m_Script (12 bytes);
+# the object's own m_Name follows as a length-prefixed string.
+_MONOBEHAVIOUR_NAME_OFFSET = 28
+_MAX_NAME_BYTES = 1024
+
+
+def _raw_monobehaviour_name(obj: Any) -> str:
+    """``m_Name`` read straight from a MonoBehaviour's bytes; '' when the layout does not fit."""
+    try:
+        raw = obj.get_raw_data()
+    except Exception as exc:  # UnityPy raises heterogeneous errors on unreadable objects
+        logger.debug("Cannot read object %s: %s", getattr(obj, "path_id", "?"), exc)
+        return ""
+    at = _MONOBEHAVIOUR_NAME_OFFSET
+    if len(raw) < at + 4:
+        return ""
+    (length,) = struct.unpack_from("<i", raw, at)
+    if not 0 < length <= _MAX_NAME_BYTES or at + 4 + length > len(raw):
+        return ""
+    return raw[at + 4 : at + 4 + length].decode("utf-8", errors="replace")
+
+
 def _object_name(obj: Any) -> str:
-    """Serialized ``m_Name`` of an object, '' when it cannot be peeked."""
+    """Serialized ``m_Name`` of an object, '' when it cannot be peeked.
+
+    With a TypeTree generator attached, UnityPy's ``peek_name`` fails on stripped MonoBehaviours
+    ("failed to dump nodes raw"); their name is then read from the bytes, otherwise the raw scan
+    would report every object's own name as text (2,294 such strings in SkerRitual).
+    """
     try:
         name = obj.peek_name()
     except Exception as exc:  # UnityPy raises heterogeneous errors on stripped layouts
         logger.debug("Cannot peek name of object %s: %s", getattr(obj, "path_id", "?"), exc)
-        return ""
-    return name if isinstance(name, str) else ""
+        name = None
+    if isinstance(name, str) and name:
+        return name
+    return _raw_monobehaviour_name(obj) if getattr(getattr(obj, "type", None), "name", "") == "MonoBehaviour" else ""
 
 
 class AssetHarvester:
@@ -167,6 +207,19 @@ class AssetHarvester:
                 offset += 4
         return extracted
 
+    @staticmethod
+    def _environments(path: Path, layout: BundleLayout | None) -> Iterator[tuple[Any, int]]:
+        """(UnityPy environment, bytes it holds) to read: the whole file, or one per unpacked file of a readable bundle."""
+        import UnityPy
+
+        if layout is None:
+            yield UnityPy.load(str(path)), path.stat().st_size
+            return
+        logger.debug("Reading %s file by file (largest %s of %s unpacked)", path.name,
+                     format_size(peak_unpack_bytes(layout)), format_size(layout.unpacked_size))
+        for _node, data in unpack_nodes(path, layout):
+            yield UnityPy.load(data), len(data)
+
     @classmethod
     def harvest_asset_file(
         cls,
@@ -175,29 +228,37 @@ class AssetHarvester:
         typetree_generator: Any | None = None,
         stats: HarvestStats | None = None,
     ) -> list[str]:
-        """Extract translatable strings from a single serialized file or bundle."""
+        """Extract translatable strings from a single serialized file or bundle.
+
+        A UnityFS bundle whose layout can be read is not opened whole: only the files that can hold
+        text are unpacked, one at a time, and the textures and audio streams stay packed.
+        """
         path = Path(asset_path)
         if not path.is_file():
             return []
         file_stat = FileStat(path.name)
-
-        import UnityPy
-
+        started = time.perf_counter()
         strings: set[str] = set()
+        heavy = False
         try:
-            env = UnityPy.load(str(path))
-            if typetree_generator is not None:
-                env.typetree_generator = typetree_generator
-            for obj in env.objects:
-                if obj.type.name in HARVESTED_TYPES:
-                    strings.update(cls.extract_strings_from_object(obj, source_lang, file_stat, stats))
+            for env, size in cls._environments(path, read_layout(path)):
+                heavy = heavy or size >= _COLLECT_ABOVE
+                if typetree_generator is not None:
+                    env.typetree_generator = typetree_generator
+                for obj in env.objects:
+                    if obj.type.name in HARVESTED_TYPES:
+                        strings.update(cls.extract_strings_from_object(obj, source_lang, file_stat, stats))
+                env = None  # freed before the next file is unpacked
+                if size >= _COLLECT_ABOVE:
+                    gc.collect()
         except Exception as exc:  # UnityPy raises heterogeneous errors on unknown layouts
             logger.warning("Failed to harvest from %s: %s", path.name, exc)
             file_stat.failed = True
-        finally:
-            env = None
-            gc.collect()
+            if heavy:
+                gc.collect()
         file_stat.strings = len(strings)
+        file_stat.seconds = time.perf_counter() - started
+        file_stat.process_peak_bytes = process_peak_bytes()
         if stats is not None:
             stats.files.append(file_stat)
         logger.debug("Harvested %d unique strings from %s", len(strings), path.name)
@@ -212,17 +273,54 @@ class AssetHarvester:
         progress: ProgressCallback | None = None,
         cancel: CancelToken | None = None,
         stats: HarvestStats | None = None,
+        memory_guard: MemoryGuard | None = None,
+        on_file: Callable[[list[str]], None] | None = None,
+        skip: Collection[str] = (),
     ) -> list[str]:
         """Crawl scenes, shared assets, data.unity3d and bundles; return unique strings.
 
-        Large games ship gigabytes of assets, so progress is reported per file and a
-        cancel request is honoured before each one.
+        Large games ship gigabytes of assets, so progress (with the file's size) is reported
+        per file and a cancel request is honoured before each one. A file whose scan would not
+        fit in the free memory is skipped and recorded in ``stats`` (``memory_guard`` None means
+        the default guard, ``MemoryGuard(enabled=False)`` scans everything). With a TypeTree
+        generator, the native library's per-script error lines on standard output are discarded.
+        ``on_file`` receives the strings of each finished file (the worker process streams them on);
+        files named in ``skip`` are passed over (a restarted worker leaves out what is already done).
         """
         files = find_serialized_sources(data_dir)
+        guard = memory_guard or MemoryGuard()
         total_strings: set[str] = set()
-        for index, path in enumerate(files, start=1):
-            checkpoint(cancel)
-            emit(progress, "pipeline.harvest_asset_file", index, len(files), name=path.name)
-            total_strings.update(cls.harvest_asset_file(path, source_lang, typetree_generator, stats))
+        quiet = discard_native_stdout() if typetree_generator is not None else contextlib.nullcontext()
+        with quiet:
+            for index, path in enumerate(files, start=1):
+                checkpoint(cancel)
+                if path.name in skip:
+                    continue
+                cost = guard.assess(path)
+                emit(progress, "pipeline.harvest_asset_file", index, len(files), name=path.name,
+                     size=format_size(cost.disk_bytes))
+                if not cost.fits:
+                    cls._record_skipped_for_memory(cost, stats)
+                    if on_file is not None:
+                        on_file([])
+                    continue
+                found = cls.harvest_asset_file(path, source_lang, typetree_generator, stats)
+                total_strings.update(found)
+                if on_file is not None:
+                    on_file(found)
         logger.info("Deep asset harvest completed: %d unique strings", len(total_strings))
         return sorted(total_strings)
+
+    @staticmethod
+    def _record_skipped_for_memory(cost: FileAssessment, stats: HarvestStats | None) -> None:
+        """Log and record a file left unread because unpacking it would not fit in memory."""
+        logger.warning(
+            "Skipped %s (%s on disk, about %s of memory needed, %s free): it would not fit in memory",
+            cost.path.name, format_size(cost.disk_bytes), format_size(cost.peak_bytes),
+            format_size(cost.available_bytes or 0),
+        )
+        if stats is not None:
+            stats.files.append(FileStat(
+                cost.path.name, skipped_for_memory=True, disk_bytes=cost.disk_bytes,
+                peak_bytes=cost.peak_bytes, available_bytes=cost.available_bytes or 0,
+            ))

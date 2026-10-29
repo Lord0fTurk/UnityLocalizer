@@ -21,6 +21,7 @@ Item {
             model: root.model
 
             Button {
+                Accessible.name: segBtn.itemText
                 id: segBtn
                 readonly property bool isActive: root.currentValue === segBtn.itemValue
                 readonly property string itemText: (modelData && modelData.label !== undefined) ? modelData.label : modelData
@@ -57,29 +58,35 @@ Item {
                     Behavior on border.color { ColorAnimation { duration: 120 } }
                 }
 
-                contentItem: RowLayout {
-                    spacing: 6
-                    anchors.centerIn: parent
+                contentItem: Item {
+                    implicitWidth: segContent.implicitWidth
+                    implicitHeight: segContent.implicitHeight
 
-                    Icon {
-                        visible: segBtn.itemIcon !== ""
-                        glyph: segBtn.itemIcon
-                        size: 14
-                        color: segBtn.isActive 
-                               ? (Theme.isDark ? Theme.accentHover : Theme.accentSolid)
-                               : (segBtn.hovered ? Theme.textPrimary : Theme.textSecondary)
-                    }
+                    RowLayout {
+                        id: segContent
+                        spacing: 6
+                        anchors.centerIn: parent
 
-                    Label {
-                        text: segBtn.itemText
-                        textFormat: Text.PlainText
-                        font.pixelSize: 13
-                        font.bold: segBtn.isActive
-                        font.weight: segBtn.isActive ? Font.DemiBold : Font.Normal
-                        color: segBtn.isActive
-                               ? (Theme.isDark ? Theme.accentHover : Theme.accentSolid)
-                               : (segBtn.hovered ? Theme.textPrimary : Theme.textSecondary)
-                        elide: Text.ElideRight
+                        Icon {
+                            visible: segBtn.itemIcon !== ""
+                            glyph: segBtn.itemIcon
+                            size: 14
+                            color: segBtn.isActive 
+                                   ? (Theme.isDark ? Theme.accentHover : Theme.accentSolid)
+                                   : (segBtn.hovered ? Theme.textPrimary : Theme.textSecondary)
+                        }
+
+                        Label {
+                            text: segBtn.itemText
+                            textFormat: Text.PlainText
+                            font.pixelSize: 13
+                            font.bold: segBtn.isActive
+                            font.weight: segBtn.isActive ? Font.DemiBold : Font.Normal
+                            color: segBtn.isActive
+                                   ? (Theme.isDark ? Theme.accentHover : Theme.accentSolid)
+                                   : (segBtn.hovered ? Theme.textPrimary : Theme.textSecondary)
+                            elide: Text.ElideRight
+                        }
                     }
                 }
             }

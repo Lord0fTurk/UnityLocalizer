@@ -24,9 +24,13 @@ def _names(paths: list[Path]) -> list[str]:
 
 
 def test_locator_finds_main_data_and_only_the_first_split_part(tmp_path: Path) -> None:
+    # The locator also looks around the data folder (next to the game), so it gets a folder of its own:
+    # tmp_path's parent is shared with the bundles other tests write.
+    data = tmp_path / "Game_Data"
+    data.mkdir()
     for name in ("mainData", "level0.split0", "level0.split1", "level0.split2", "sharedassets0.assets", "notes.txt"):
-        (tmp_path / name).write_bytes(b"x")
-    assert _names(find_serialized_sources(tmp_path)) == ["level0.split0", "mainData", "sharedassets0.assets"]
+        (data / name).write_bytes(b"x")
+    assert _names(find_serialized_sources(data)) == ["level0.split0", "mainData", "sharedassets0.assets"]
 
 
 def test_locator_finds_bundles_outside_streaming_assets(tmp_path: Path) -> None:

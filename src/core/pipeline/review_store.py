@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 import sqlite3
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 
 from src.core.pipeline.review_session import ALL_STATUSES, ReviewRow, ReviewSession
 from src.core.syntax_guard import UNITY_PROTECT_RE
@@ -49,26 +49,29 @@ class ReviewStore:
         self._conn = sqlite3.connect(":memory:", check_same_thread=False)
         self._conn.execute(
             "CREATE TABLE rows (id INTEGER PRIMARY KEY, status TEXT NOT NULL, modified INTEGER NOT NULL, "
-            "problem INTEGER NOT NULL, search TEXT NOT NULL)"
+            "problem INTEGER NOT NULL, search TEXT NOT NULL, source TEXT NOT NULL)"
         )
         self._conn.execute("CREATE INDEX idx_status ON rows(status)")
         self._conn.executemany(
-            "INSERT INTO rows VALUES (?, ?, ?, ?, ?)", [self._values(row) for row in session.rows]
+            "INSERT INTO rows VALUES (?, ?, ?, ?, ?, ?)", [self._values(row) for row in session.rows]
         )
         self._conn.commit()
 
     @staticmethod
-    def _values(row: ReviewRow) -> tuple[int, str, int, int, str]:
-        return (row.row_id, row.status, int(row.dirty), int(bool(row.issues)), _search_blob(row))
+    def _values(row: ReviewRow) -> tuple[int, str, int, int, str, str]:
+        return (row.row_id, row.status, int(row.dirty), int(bool(row.issues)), _search_blob(row), row.source)
 
     def close(self) -> None:
         with self._lock:
             self._conn.close()
 
     @staticmethod
-    def _where(status: str, query: str) -> tuple[str, list[object]]:
+    def _where(status: str, query: str, source: str = "") -> tuple[str, list[object]]:
         clauses: list[str] = []
         params: list[object] = []
+        if source:
+            clauses.append("source = ?")
+            params.append(source)
         if status == FILTER_MODIFIED:
             clauses.append("modified = 1")
         elif status == FILTER_WARNINGS:
@@ -82,14 +85,16 @@ class ReviewStore:
             params.append(needle)
         return ("WHERE " + " AND ".join(clauses)) if clauses else "", params
 
-    def count(self, status: str = "", query: str = "") -> int:
-        where, params = self._where(status, query)
+    def count(self, status: str = "", query: str = "", source: str = "") -> int:
+        where, params = self._where(status, query, source)
         with self._lock:
             return int(self._conn.execute(f"SELECT COUNT(*) FROM rows {where}", params).fetchone()[0])
 
-    def page(self, status: str = "", query: str = "", page: int = 1, page_size: int = 50) -> list[int]:
+    def page(
+        self, status: str = "", query: str = "", page: int = 1, page_size: int = 50, source: str = ""
+    ) -> list[int]:
         """Row ids on a 1-based page, in session order."""
-        where, params = self._where(status, query)
+        where, params = self._where(status, query, source)
         offset = (max(1, page) - 1) * page_size
         with self._lock:
             found = self._conn.execute(
@@ -97,9 +102,9 @@ class ReviewStore:
             ).fetchall()
         return [int(r[0]) for r in found]
 
-    def ids(self, status: str = "", query: str = "") -> list[int]:
+    def ids(self, status: str = "", query: str = "", source: str = "") -> list[int]:
         """Every matching row id (for bulk operations)."""
-        where, params = self._where(status, query)
+        where, params = self._where(status, query, source)
         with self._lock:
             return [int(r[0]) for r in self._conn.execute(f"SELECT id FROM rows {where} ORDER BY id", params)]
 
@@ -113,18 +118,33 @@ class ReviewStore:
             counts[FILTER_WARNINGS] = int(self._conn.execute("SELECT COUNT(*) FROM rows WHERE problem = 1").fetchone()[0])
         return counts
 
+    def sources(self) -> dict[str, int]:
+        """Rows per known harvest channel, largest first (rows of unknown origin are not listed)."""
+        with self._lock:
+            found = self._conn.execute(
+                "SELECT source, COUNT(*) FROM rows WHERE source != '' GROUP BY source ORDER BY COUNT(*) DESC, source"
+            ).fetchall()
+        return {str(name): int(number) for name, number in found}
+
     def refresh(self, row: ReviewRow) -> None:
         """Mirror a row after the session changed it."""
+        self.refresh_many([row])
+
+    def refresh_many(self, rows: Iterable[ReviewRow]) -> None:
+        """Mirror several rows in one transaction (bulk exclude / include)."""
         with self._lock:
-            self._conn.execute(
+            self._conn.executemany(
                 "UPDATE rows SET status = ?, modified = ?, problem = ?, search = ? WHERE id = ?",
-                (row.status, int(row.dirty), int(bool(row.issues)), _search_blob(row), row.row_id),
+                [
+                    (row.status, int(row.dirty), int(bool(row.issues)), _search_blob(row), row.row_id)
+                    for row in rows
+                ],
             )
             self._conn.commit()
 
     def replace_all(
         self, find: str, replace: str, match_case: bool, status: str = "", query: str = "",
-        edit: Callable[[int, str], ReviewRow] | None = None,
+        edit: Callable[[int, str], ReviewRow] | None = None, source: str = "",
     ) -> int:
         """Replace in the translations of matching rows (tags and placeholders are left alone).
 
@@ -135,7 +155,7 @@ class ReviewStore:
             return 0
         apply = edit or self._session.edit
         changed = 0
-        for row_id in self.ids(status, query):
+        for row_id in self.ids(status, query, source):
             row = self._session.rows[row_id]
             if not row.translation:
                 continue

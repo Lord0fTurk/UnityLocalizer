@@ -26,7 +26,7 @@ Button {
         radius: Theme.radiusControl
 
         color: {
-            if (!root.enabled) return Theme.isDark ? "#232A3B" : "#CBD5E1";
+            if (!root.enabled) return Theme.surfaceDisabled;
             if (Theme.isNeon) {
                 return root.down ? Theme.accentAlpha(0.45) : (root.hovered ? Theme.accentAlpha(0.35) : Theme.accentAlpha(0.25));
             }
@@ -56,42 +56,47 @@ Button {
         }
     }
 
-    contentItem: RowLayout {
-        id: btnContent
-        spacing: 10
-        anchors.centerIn: parent
+    contentItem: Item {
+        implicitWidth: btnContent.implicitWidth
+        implicitHeight: btnContent.implicitHeight
 
-        Icon {
-            id: btnIcon
-            visible: root.iconGlyph !== "" && !root.busy
-            glyph: root.iconGlyph
-            size: root.iconSize
-            color: {
-                if (!root.enabled) return Theme.textMuted;
-                if (Theme.isNeon) return Theme.textPrimary;
-                return Theme.accentContrastText;
+        RowLayout {
+            id: btnContent
+            spacing: 10
+            anchors.centerIn: parent
+
+            Icon {
+                id: btnIcon
+                visible: root.iconGlyph !== "" && !root.busy
+                glyph: root.iconGlyph
+                size: root.iconSize
+                color: {
+                    if (!root.enabled) return Theme.textMuted;
+                    if (Theme.isNeon) return Theme.textPrimary;
+                    return Theme.accentContrastText;
+                }
             }
-        }
 
-        BusyIndicator {
-            visible: root.busy
-            running: root.busy
-            Layout.preferredWidth: root.iconSize
-            Layout.preferredHeight: root.iconSize
-        }
-
-        Label {
-            text: root.text
-            textFormat: Text.PlainText
-            font.pixelSize: 14
-            font.bold: true
-            font.letterSpacing: 0.5
-            color: {
-                if (!root.enabled) return Theme.textMuted;
-                if (Theme.isNeon) return Theme.textPrimary;
-                return Theme.accentContrastText;
+            BusyIndicator {
+                visible: root.busy
+                running: root.busy
+                Layout.preferredWidth: root.iconSize
+                Layout.preferredHeight: root.iconSize
             }
-            elide: Text.ElideRight
+
+            Label {
+                text: root.text
+                textFormat: Text.PlainText
+                font.pixelSize: 14
+                font.bold: true
+                font.letterSpacing: 0.5
+                color: {
+                    if (!root.enabled) return Theme.textMuted;
+                    if (Theme.isNeon) return Theme.textPrimary;
+                    return Theme.accentContrastText;
+                }
+                elide: Text.ElideRight
+            }
         }
     }
 }

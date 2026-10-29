@@ -15,3 +15,4 @@ SettingSwitch 1.0 SettingSwitch.qml
 SettingSlider 1.0 SettingSlider.qml
 SettingTextArea 1.0 SettingTextArea.qml
 ToastNotification 1.0 ToastNotification.qml
+FocusRing 1.0 FocusRing.qml

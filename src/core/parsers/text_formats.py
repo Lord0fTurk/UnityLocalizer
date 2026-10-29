@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import json
 import logging
-import xml.etree.ElementTree as ET
 from typing import TYPE_CHECKING, Any
 
 from src.core.cjk import is_single_cjk
@@ -18,6 +17,7 @@ from src.core.parsers.loc_table import (
     parse_rows,
     table_strings,
 )
+from src.core.parsers.xml_text import translate_xml, xml_strings
 from src.core.parsers.yarn_lines import looks_like_yarn, yarn_strings
 
 if TYPE_CHECKING:
@@ -132,45 +132,12 @@ def strings_from_lines(text: str) -> list[str]:
 
 def strings_from_xml_text(text: str) -> list[str]:
     """Collect element text nodes from XML content."""
-    if "<!ENTITY" in text.upper():
-        return []
-    try:
-        root = ET.fromstring(text)
-    except ET.ParseError as exc:
-        logger.debug("XML parse failed: %s", exc)
-        return []
-    return [chunk.strip() for chunk in root.itertext() if len(chunk.strip()) > 1 or is_single_cjk(chunk)]
+    return xml_strings(text)
 
 
 def translate_xml_text(text: str, translations: dict[str, str]) -> str | None:
     """Replace element text/tail nodes in XML content; None if XML is invalid."""
-    if "<!ENTITY" in text.upper():
-        return None
-    try:
-        root = ET.fromstring(text)
-    except ET.ParseError as exc:
-        logger.debug("XML parse failed on write: %s", exc)
-        return None
-
-    def _swap(raw: str | None) -> str | None:
-        if not raw:
-            return raw
-        core = raw.strip()
-        if core not in translations:
-            return raw
-        start = raw.index(core)
-        return f"{raw[:start]}{translations[core]}{raw[start + len(core):]}"
-
-    for elem in root.iter():
-        elem.text = _swap(elem.text)
-        elem.tail = _swap(elem.tail)
-    body = ET.tostring(root, encoding="unicode")
-    stripped = text.lstrip("\ufeff").lstrip()
-    if stripped.startswith("<?xml"):
-        decl_end = stripped.find("?>")
-        if decl_end != -1:
-            return stripped[: decl_end + 2] + "\n" + body
-    return body
+    return translate_xml(text, translations)
 
 
 def sniff_and_extract(text: str, source_lang: str = "en", stats: "HarvestStats | None" = None) -> list[str]:

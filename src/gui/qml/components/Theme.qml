@@ -22,27 +22,30 @@ QtObject {
     readonly property bool isNeon: mode === "cyber_neon"
 
     // ── 1. Proje Vurgu Paletleri (Accent Presets - DESIGN.md §1) ─────
+    // Daylight uses deeper tones so accent text and icons keep 4.5:1 on white surfaces
+    // (the bright dark-theme tones measure only 2.1-2.5:1 there).
     readonly property color accentSolid: {
         switch (preset) {
-            case "emerald": return "#10B981";
-            case "indigo":  return "#6366F1";
-            case "amber":   return "#F59E0B";
+            case "emerald": return isDark ? "#10B981" : "#047857";
+            case "indigo":  return isDark ? "#5558E8" : "#4F46E5";
+            case "amber":   return isDark ? "#F59E0B" : "#A04A07";
             case "cyan":
-            default:        return "#06B6D4";
+            default:        return isDark ? "#06B6D4" : "#0F6F86";
         }
     }
 
     readonly property color accentHover: {
         switch (preset) {
-            case "emerald": return "#34D399";
-            case "indigo":  return "#818CF8";
-            case "amber":   return "#FBBF24";
+            case "emerald": return isDark ? "#34D399" : "#065F46";
+            case "indigo":  return isDark ? "#818CF8" : "#4338CA";
+            case "amber":   return isDark ? "#FBBF24" : "#8A3F06";
             case "cyan":
-            default:        return "#22D3EE";
+            default:        return isDark ? "#22D3EE" : "#155E75";
         }
     }
 
     readonly property color accentContrastText: {
+        if (!isDark) return "#FFFFFF";
         switch (preset) {
             case "emerald": return "#050A08";
             case "indigo":  return "#FFFFFF";
@@ -64,22 +67,23 @@ QtObject {
 
     // ── Anlamsal Durum Renkleri (Semantic Status Tokens - DESIGN.md §1) ──
     // Success (Aktif / Hazır / Önerilen)
-    readonly property color statusSuccess:       "#10B981"
+    // Status colors double as text colors, so Daylight gets deeper tones (>= 4.5:1 on white).
+    readonly property color statusSuccess:       isDark ? "#10B981" : "#047857"
     readonly property color statusSuccessSubtle: Qt.rgba(16/255, 185/255, 129/255, 0.14)
     readonly property color statusSuccessBorder: Qt.rgba(16/255, 185/255, 129/255, 0.40)
 
     // Warning (Uyarı / Bekleme)
-    readonly property color statusWarning:       "#F59E0B"
+    readonly property color statusWarning:       isDark ? "#F59E0B" : "#A04A07"
     readonly property color statusWarningSubtle: Qt.rgba(245/255, 158/255, 11/255, 0.14)
     readonly property color statusWarningBorder: Qt.rgba(245/255, 158/255, 11/255, 0.40)
 
     // Danger (Hata / Kritik / Destek)
-    readonly property color statusDanger:        "#F43F5E"
+    readonly property color statusDanger:        isDark ? "#F43F5E" : "#BE123C"
     readonly property color statusDangerSubtle:  Qt.rgba(244/255, 63/255, 94/255, 0.14)
     readonly property color statusDangerBorder:  Qt.rgba(244/255, 63/255, 94/255, 0.40)
 
     // Info (Bilgi Kutusu / Konfigürasyon Özeti)
-    readonly property color statusInfo:          "#38BDF8"
+    readonly property color statusInfo:          isDark ? "#38BDF8" : "#0369A1"
     readonly property color statusInfoSubtle:    Qt.rgba(56/255, 189/255, 248/255, 0.12)
     readonly property color statusInfoBorder:    Qt.rgba(56/255, 189/255, 248/255, 0.35)
 
@@ -136,9 +140,10 @@ QtObject {
 
     // borderControl (Kontrol Sınırı)
     readonly property color borderControl: {
-        if (mode === "daylight") return "#94A3B8";
+        // Control boundaries need 3:1 against their surroundings (WCAG 1.4.11).
+        if (mode === "daylight") return "#6B7C93";
         if (mode === "cyber_neon") return Qt.rgba(accentRgb.r, accentRgb.g, accentRgb.b, 0.55);
-        return "#263042";
+        return "#5A6A84";
     }
 
     // borderFocus (Aktif / Focus)
@@ -162,8 +167,9 @@ QtObject {
 
     // textMuted (Pasif / Etiket)
     readonly property color textMuted: {
-        if (mode === "cyber_neon") return "#52637A";
-        return "#64748B";
+        if (mode === "daylight") return "#526074";
+        if (mode === "cyber_neon") return "#8494AD";
+        return "#8190A5";
     }
 
     // accentSubtle (Seçili Dolgu)
@@ -186,6 +192,20 @@ QtObject {
         return "transparent";
     }
     readonly property color effectGlow: glowColor
+
+    // Support (Patreon) pink: deeper in Daylight so it stays readable as text.
+    readonly property color supportColor: isDark ? "#F472B6" : "#BE185D"
+    function supportAlpha(alpha) { return Qt.rgba(244/255, 114/255, 182/255, alpha); }
+    function dangerAlpha(alpha)  { return Qt.rgba(244/255, 63/255, 94/255, alpha); }
+
+    // Review status "repaired" (purple) and the surfaces the views used to hard-code.
+    readonly property color statusRepaired:        isDark ? "#A855F7" : "#7E22CE"
+    readonly property color surfaceDisabled:       isDark ? "#232A3B" : "#CBD5E1"
+    readonly property color surfaceDisabledSubtle: isDark ? "#121722" : "#F1F5F9"
+    readonly property color surfaceInset:          isDark ? "#080C13" : "#F8FAFC"
+
+    // Swatch colors shown in the accent picker (the dark-theme tone of each preset).
+    readonly property var presetSwatches: ({ cyan: "#06B6D4", emerald: "#10B981", indigo: "#5558E8", amber: "#F59E0B" })
 
     // ── 4. Köşe Yuvarlaklığı ve Geometri Sabitleri (DESIGN.md §4) ────
     readonly property int radiusCard:    10 // Ana Kartlar

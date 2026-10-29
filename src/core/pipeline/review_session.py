@@ -9,7 +9,7 @@ fix can never reintroduce a missing ``{0}`` or an unbalanced tag.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -25,9 +25,12 @@ STATUS_REJECTED = "rejected"
 STATUS_INVALID = "invalid"
 STATUS_FAILED = "failed"
 STATUS_UNCHANGED = "unchanged"
+# Left out of the game dictionary on save; reversible with ``ReviewSession.include``.
+STATUS_EXCLUDED = "excluded"
 
 ALL_STATUSES: tuple[str, ...] = (
     STATUS_ACCEPTED, STATUS_REPAIRED, STATUS_EDITED, STATUS_REJECTED, STATUS_INVALID, STATUS_FAILED, STATUS_UNCHANGED,
+    STATUS_EXCLUDED,
 )
 SHIPPABLE_STATUSES = frozenset({STATUS_ACCEPTED, STATUS_REPAIRED, STATUS_EDITED})
 
@@ -45,6 +48,10 @@ class ReviewRow:
     status: str
     issues: list[Issue] = field(default_factory=list)
     dirty: bool = False
+    # Harvest channel the text came from ("" when unknown, e.g. an existing dictionary).
+    source: str = ""
+    # The status before the row was left out, so ``include`` can put it back.
+    prior_status: str = ""
     # The state the row had when the session was built; "revert" returns to it.
     initial_translation: str | None = None
     initial_status: str | None = None
@@ -79,8 +86,13 @@ class ReviewSession:
         self.context = context
 
     @classmethod
-    def from_report(cls, report: TranslationReport, context: RunContext) -> ReviewSession:
-        """Build rows: problems first (rejected, failed), then accepted and unchanged."""
+    def from_report(
+        cls, report: TranslationReport, context: RunContext, sources: Mapping[str, str] | None = None
+    ) -> ReviewSession:
+        """Build rows: problems first (rejected, failed), then accepted and unchanged.
+
+        ``sources`` maps a source text to the harvest channel it came from.
+        """
         entries: list[tuple[str, str, str, list[Issue]]] = []
         for original in report.rejected:
             candidate = report.rejected_translations.get(original, "")
@@ -90,7 +102,8 @@ class ReviewSession:
         entries += [(o, t, STATUS_REPAIRED, []) for o, t in report.translations.items() if o in report.repaired]
         entries += [(o, t, STATUS_ACCEPTED, []) for o, t in report.translations.items() if o not in report.repaired]
         entries += [(o, o, STATUS_UNCHANGED, []) for o in report.unchanged_sources]
-        rows = [ReviewRow(i, o, t, s, e) for i, (o, t, s, e) in enumerate(entries)]
+        origin = sources or {}
+        rows = [ReviewRow(i, o, t, s, e, source=origin.get(o, "")) for i, (o, t, s, e) in enumerate(entries)]
         return cls(rows, context)
 
     @classmethod
@@ -144,12 +157,53 @@ class ReviewSession:
         row.dirty = False
         return row
 
-    def filtered(self, status: str = "", query: str = "") -> list[ReviewRow]:
-        """Rows matching a status ('' for all) and a case- and diacritic-insensitive text query."""
+    def exclude(self, row_ids: Iterable[int]) -> list[ReviewRow]:
+        """Leave rows out of the game dictionary on save; returns the rows that changed.
+
+        The rows stay listed so ``include`` can put them back with their previous status.
+        """
+        changed: list[ReviewRow] = []
+        for row_id in row_ids:
+            row = self._row(row_id)
+            if row.status != STATUS_EXCLUDED:
+                row.prior_status, row.status = row.status, STATUS_EXCLUDED
+                changed.append(row)
+        return changed
+
+    def include(self, row_ids: Iterable[int]) -> list[ReviewRow]:
+        """Put left-out rows back with the status they had; returns the rows that changed."""
+        changed: list[ReviewRow] = []
+        for row_id in row_ids:
+            row = self._row(row_id)
+            if row.status == STATUS_EXCLUDED:
+                row.status, row.prior_status = row.prior_status or STATUS_ACCEPTED, ""
+                changed.append(row)
+        return changed
+
+    def excluded(self) -> set[str]:
+        """Source texts that must not be in the game dictionary."""
+        return {row.original for row in self.rows if row.status == STATUS_EXCLUDED}
+
+    def source_counts(self) -> dict[str, int]:
+        """Rows per known harvest channel (rows of unknown origin are not counted)."""
+        counts: dict[str, int] = {}
+        for row in self.rows:
+            if row.source:
+                counts[row.source] = counts.get(row.source, 0) + 1
+        return counts
+
+    def _row(self, row_id: int) -> ReviewRow:
+        if not (0 <= row_id < len(self.rows)):
+            raise IndexError(f"Review row index out of range: {row_id}")
+        return self.rows[row_id]
+
+    def filtered(self, status: str = "", query: str = "", source: str = "") -> list[ReviewRow]:
+        """Rows matching a status ('' for all), a source channel and a case- and diacritic-insensitive query."""
         needle = fold(query.strip())
         return [
             row for row in self.rows
             if (not status or row.status == status)
+            and (not source or row.source == source)
             and (not needle or needle in fold(row.original) or needle in fold(row.translation))
         ]
 

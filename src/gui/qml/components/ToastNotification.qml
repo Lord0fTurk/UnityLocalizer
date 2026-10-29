@@ -11,25 +11,35 @@ Item {
     anchors.margins: 20
     visible: opacity > 0
     opacity: 0
+    Behavior on opacity { NumberAnimation { duration: 200 } }
 
     property string message: ""
     property string toastType: "info" // "success", "error", "warning", "info"
 
+    // Screen readers announce the toast as an alert with its message.
+    Accessible.role: Accessible.AlertMessage
+    Accessible.name: message
+
     function show(msg, type) {
         message = msg;
         toastType = type || "info";
+        // Errors and warnings stay long enough to be read; the timer also pauses on hover.
+        dismissTimer.interval = (toastType === "error" || toastType === "warning") ? 10000 : 4000;
         root.opacity = 1.0;
         toastCard.y = 0;
         dismissTimer.restart();
     }
 
+    function dismiss() {
+        dismissTimer.stop();
+        root.opacity = 0.0;
+        toastCard.y = 20;
+    }
+
     Timer {
         id: dismissTimer
         interval: 4000
-        onTriggered: {
-            root.opacity = 0.0;
-            toastCard.y = 20;
-        }
+        onTriggered: root.dismiss()
     }
 
     Rectangle {
@@ -48,7 +58,13 @@ Item {
 
         y: 20
         Behavior on y { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-        Behavior on opacity { NumberAnimation { duration: 200 } }
+
+        HoverHandler {
+            onHoveredChanged: {
+                if (hovered) dismissTimer.stop();
+                else if (root.opacity > 0) dismissTimer.restart();
+            }
+        }
 
         RowLayout {
             id: contentRow
@@ -83,19 +99,26 @@ Item {
                 lineHeight: 1.2
             }
 
-            MouseArea {
-                Layout.preferredWidth: 20
-                Layout.preferredHeight: 20
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    root.opacity = 0.0;
-                    toastCard.y = 20;
+            Button {
+                id: closeButton
+                Layout.preferredWidth: 28
+                Layout.preferredHeight: 28
+                Layout.alignment: Qt.AlignTop
+                topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
+                Accessible.name: localeManager ? localeManager.t("common.close") : ""
+                onClicked: root.dismiss()
+
+                background: Rectangle {
+                    radius: Theme.radiusBadge
+                    color: closeButton.hovered ? Theme.surfaceHover : "transparent"
                 }
-                Icon {
-                    anchors.centerIn: parent
-                    glyph: Icons.x
-                    color: Theme.textMuted
-                    size: 14
+                contentItem: Item {
+                    Icon {
+                        anchors.centerIn: parent
+                        glyph: Icons.x
+                        color: closeButton.hovered ? Theme.textPrimary : Theme.textSecondary
+                        size: 14
+                    }
                 }
             }
         }

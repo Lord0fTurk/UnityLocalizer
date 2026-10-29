@@ -14,8 +14,9 @@ ApplicationWindow {
     property int normalHeight: height
     width: Math.min(savedGeometry.width > 0 ? savedGeometry.width : 1280, Screen.desktopAvailableWidth * 0.95)
     height: Math.min(savedGeometry.height > 0 ? savedGeometry.height : 800, Screen.desktopAvailableHeight * 0.95)
-    minimumWidth: 980
-    minimumHeight: 640
+    // The interface size setting shrinks the usable area in logical pixels; never demand more than the screen has.
+    minimumWidth: Math.min(980, Screen.desktopAvailableWidth)
+    minimumHeight: Math.min(640, Screen.desktopAvailableHeight)
     visible: true
     Component.onCompleted: {
         if (savedGeometry.maximized) window.showMaximized();
@@ -47,7 +48,7 @@ ApplicationWindow {
     readonly property color clrInput:      Theme.surfaceControl
     readonly property color clrAccent:     Theme.accentSolid
     readonly property color clrAccent2:    Theme.accentHover
-    readonly property color clrPurple:     Theme.preset === "indigo" ? Theme.accentSolid : "#A855F7"
+    readonly property color clrPurple:     Theme.preset === "indigo" ? Theme.accentSolid : Theme.statusRepaired
     readonly property color clrSuccess:    Theme.statusSuccess
     readonly property color clrWarn:       Theme.statusWarning
     readonly property color clrError:      Theme.statusDanger
@@ -138,7 +139,7 @@ ApplicationWindow {
 
                                 Text {
                                     text: "v" + (appBackend ? appBackend.version : "0.1.0")
-                                    font.pixelSize: 10
+                                    font.pixelSize: 11
                                     font.bold: true
                                     color: clrAccent
                                 }
@@ -157,6 +158,7 @@ ApplicationWindow {
                     property string iconGlyph: ""
                     property string labelText: ""
 
+                    Accessible.name: labelText
                     Layout.fillWidth: true
                     Layout.preferredHeight: 44
                     scale: down ? 0.97 : 1.0
@@ -196,10 +198,6 @@ ApplicationWindow {
                         anchors.leftMargin: 14
                         anchors.rightMargin: 12
                         spacing: 12
-                        transform: Translate {
-                            x: (navBtn.hovered && navIndex !== targetIndex) ? 4 : 0
-                            Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-                        }
 
                         Icon {
                             glyph: navBtn.iconGlyph
@@ -265,7 +263,8 @@ ApplicationWindow {
                 Button {
                     id: btnPatreonSupport
                     // Warm pink instead of the error red: this is an invitation, not an alarm.
-                    readonly property color supportColor: "#F472B6"
+                    readonly property color supportColor: Theme.supportColor
+                    Accessible.name: window.t("nav.patreon_support")
                     Layout.fillWidth: true
                     Layout.preferredHeight: 48
                     topInset: 0
@@ -285,8 +284,8 @@ ApplicationWindow {
 
                     background: Rectangle {
                         radius: Theme.radiusControl
-                        color: Qt.rgba(244/255, 114/255, 182/255, btnPatreonSupport.down ? 0.22 : (btnPatreonSupport.hovered ? 0.14 : 0.06))
-                        border.color: Qt.rgba(244/255, 114/255, 182/255, btnPatreonSupport.hovered ? 0.9 : 0.4)
+                        color: Theme.supportAlpha(btnPatreonSupport.down ? 0.22 : (btnPatreonSupport.hovered ? 0.14 : 0.06))
+                        border.color: Theme.supportAlpha(btnPatreonSupport.hovered ? 0.9 : 0.4)
                         border.width: 1
                         Behavior on color { ColorAnimation { duration: 150 } }
                         Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -305,10 +304,11 @@ ApplicationWindow {
                                 size: 18
                                 color: btnPatreonSupport.supportColor
                                 anchors.verticalCenter: parent.verticalCenter
-                                // A slow heartbeat; it quickens while the pointer is over the button.
+                                // The heart beats only while the pointer is over the button, so the sidebar stays still otherwise.
                                 SequentialAnimation on scale {
                                     loops: Animation.Infinite
-                                    running: window.visible
+                                    running: window.visible && btnPatreonSupport.hovered
+                                    onRunningChanged: { if (!running) supportHeart.scale = 1.0; }
                                     NumberAnimation { to: 1.18; duration: btnPatreonSupport.hovered ? 280 : 620; easing.type: Easing.OutQuad }
                                     NumberAnimation { to: 1.0; duration: btnPatreonSupport.hovered ? 280 : 620; easing.type: Easing.InQuad }
                                     PauseAnimation { duration: btnPatreonSupport.hovered ? 0 : 900 }
@@ -329,7 +329,7 @@ ApplicationWindow {
                                     width: Math.min(implicitWidth, 150)
                                     text: window.t("nav.patreon_sub")
                                     color: clrTxtDim
-                                    font.pixelSize: 10
+                                    font.pixelSize: 11
                                     elide: Text.ElideRight
                                 }
                             }
@@ -379,6 +379,8 @@ ApplicationWindow {
             }
         }
     }
+
+    FocusRing { }
 
     ToastNotification {
         id: toastNotification

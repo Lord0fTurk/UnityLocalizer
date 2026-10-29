@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Collection
 from pathlib import Path
 
 from src.core.parsers import xunity_codec
@@ -110,8 +111,13 @@ class AutoTranslatorParser(BaseParser):
         file_path: Path | str,
         translations: dict[str, str],
         output_path: Path | str | None = None,
+        remove_keys: Collection[str] = (),
     ) -> bool:
-        """Merge translations, keep other lines verbatim and regenerate the regex section."""
+        """Merge translations, keep other lines verbatim and regenerate the regex section.
+
+        ``remove_keys`` are source texts whose entries (and the variants derived from them) are
+        deleted from the file, unless a translation being written needs the same key.
+        """
         path = Path(file_path)
         out_path = Path(output_path) if output_path else path
         expanded = expand_dialogue_and_quote_variants(translations)
@@ -119,8 +125,9 @@ class AutoTranslatorParser(BaseParser):
         if len(literal) != len(expanded):
             # XUnity reads keys starting with r:/sr: as regexes, so such texts cannot be keys.
             logger.info("Skipped %d texts starting with r:/sr:", len(expanded) - len(literal))
+        drop = set(expand_dialogue_and_quote_variants({k: k for k in remove_keys})) - set(literal)
         kept = self._without_generated_section(self._read_lines(path))
-        lines_out, entries = self._merge_entries(kept, literal)
+        lines_out, entries = self._merge_entries(kept, literal, drop)
         lines_out += self._regex_section(entries)
         try:
             return safe_write(out_path, "\n".join(lines_out) + "\n", encoding="utf-8-sig")
@@ -160,8 +167,13 @@ class AutoTranslatorParser(BaseParser):
         return kept
 
     @staticmethod
-    def _merge_entries(lines: list[str], translations: dict[str, str]) -> tuple[list[str], dict[str, str]]:
-        """Update existing entries in place, append new ones; return lines and all plain entries."""
+    def _merge_entries(
+        lines: list[str], translations: dict[str, str], drop: Collection[str] = ()
+    ) -> tuple[list[str], dict[str, str]]:
+        """Update existing entries in place, append new ones; return lines and all plain entries.
+
+        Entries whose key is in ``drop`` are removed.
+        """
         lines_out: list[str] = []
         entries: dict[str, str] = {}
         for line in lines:
@@ -170,6 +182,8 @@ class AutoTranslatorParser(BaseParser):
                 lines_out.append(line)  # comments, directives and hand-written regexes
                 continue
             key, value = decoded
+            if key in drop:
+                continue
             if key in translations:
                 value = translations[key]
                 line = xunity_codec.encode_line(key, value)

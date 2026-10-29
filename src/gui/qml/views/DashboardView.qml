@@ -123,38 +123,12 @@ ScrollView {
                     horizontalAlignment: Text.AlignHCenter
                 }
 
-                Button {
-                    id: btnSelectGameEmpty
+                PrimaryButton {
                     Layout.alignment: Qt.AlignHCenter
                     implicitHeight: Theme.heightSecondary
-                    implicitWidth: Math.max(160, selectGameEmptyContent.implicitWidth + 32)
-                    topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
-                    scale: down ? 0.98 : 1.0
-
-                    background: Rectangle {
-                        radius: Theme.radiusControl
-                        color: btnSelectGameEmpty.down ? Theme.accentSolid : (btnSelectGameEmpty.hovered ? Theme.accentHover : Theme.accentSolid)
-                        border.width: 0
-                        Behavior on color { ColorAnimation { duration: 120 } }
-                    }
-
-                    contentItem: RowLayout {
-                        id: selectGameEmptyContent
-                        spacing: 8
-                        anchors.centerIn: parent
-                        Icon {
-                            glyph: Icons.folderOpen
-                            size: 14
-                            color: Theme.accentContrastText
-                        }
-                        Text {
-                            text: root.t("dashboard.select_game_btn")
-                            font.pixelSize: 13
-                            font.bold: true
-                            color: Theme.accentContrastText
-                        }
-                    }
-
+                    iconGlyph: Icons.folderOpen
+                    iconSize: 14
+                    text: root.t("dashboard.select_game_btn")
                     onClicked: folderDialog.open()
                 }
             }
@@ -254,75 +228,19 @@ ScrollView {
                     spacing: 8
 
                     // Klasörü Aç
-                    Button {
-                        id: btnOpenFolder
-                        implicitHeight: Theme.heightSecondary
-                        topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
-                        scale: down ? 0.98 : 1.0
-
-                        background: Rectangle {
-                            radius: Theme.radiusControl
-                            color: btnOpenFolder.down ? Theme.surfaceHover : (btnOpenFolder.hovered ? Theme.surfaceHover : Theme.surfaceControl)
-                            border.color: btnOpenFolder.hovered ? Theme.borderFocus : Theme.borderControl
-                            border.width: 1
-                            Behavior on color { ColorAnimation { duration: 120 } }
-                            Behavior on border.color { ColorAnimation { duration: 120 } }
-                        }
-
-                        contentItem: RowLayout {
-                            spacing: 6
-                            anchors.centerIn: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
-                            Icon {
-                                glyph: Icons.folderOpen
-                                size: 13
-                                color: btnOpenFolder.hovered ? Theme.textPrimary : Theme.textSecondary
-                            }
-                            Text {
-                                text: root.t("dashboard.open_game_folder_btn")
-                                font.pixelSize: 12
-                                color: btnOpenFolder.hovered ? Theme.textPrimary : Theme.textSecondary
-                            }
-                        }
-
-                        onClicked: {
-                            if (appBackend) appBackend.openGameFolder();
-                        }
+                    SecondaryButton {
+                        iconGlyph: Icons.folderOpen
+                        iconSize: 13
+                        text: root.t("dashboard.open_game_folder_btn")
+                        onClicked: { if (appBackend) appBackend.openGameFolder(); }
                     }
 
                     // Farklı Oyun Seç...
-                    Button {
-                        id: btnChangeGame
+                    PrimaryButton {
                         implicitHeight: Theme.heightSecondary
-                        topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
-                        scale: down ? 0.98 : 1.0
-
-                        background: Rectangle {
-                            radius: Theme.radiusControl
-                            color: btnChangeGame.down ? Theme.accentSolid : (btnChangeGame.hovered ? Theme.accentHover : Theme.accentSolid)
-                            border.width: 0
-                            Behavior on color { ColorAnimation { duration: 120 } }
-                        }
-
-                        contentItem: RowLayout {
-                            spacing: 6
-                            anchors.centerIn: parent
-                            anchors.leftMargin: 14
-                            anchors.rightMargin: 14
-                            Icon {
-                                glyph: Icons.refreshCw
-                                size: 13
-                                color: Theme.accentContrastText
-                            }
-                            Text {
-                                text: root.t("dashboard.change_game_btn")
-                                font.pixelSize: 12
-                                font.bold: true
-                                color: Theme.accentContrastText
-                            }
-                        }
-
+                        iconGlyph: Icons.refreshCw
+                        iconSize: 13
+                        text: root.t("dashboard.change_game_btn")
                         onClicked: folderDialog.open()
                     }
                 }
@@ -609,13 +527,13 @@ ScrollView {
                     Layout.fillWidth: true
                     visible: Boolean(appBackend && !appBackend.languagesSupportedByEngine)
                     spacing: 6
-                    Icon { glyph: Icons.triangleAlert; size: 14; color: "#F59E0B"; Layout.alignment: Qt.AlignTop }
+                    Icon { glyph: Icons.triangleAlert; size: 14; color: Theme.statusWarning; Layout.alignment: Qt.AlignTop }
                     Text {
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
                         text: root.t("dashboard.quick_lang_unsupported")
                         font.pixelSize: 11
-                        color: "#F59E0B"
+                        color: Theme.statusWarning
                     }
                 }
 
@@ -627,7 +545,7 @@ ScrollView {
                     Icon {
                         glyph: parent.shaped ? Icons.languages : Icons.triangleAlert
                         size: 14
-                        color: parent.shaped ? clrAccentCyan : "#F59E0B"
+                        color: parent.shaped ? clrAccentCyan : Theme.statusWarning
                         Layout.alignment: Qt.AlignTop
                     }
                     Text {
@@ -635,7 +553,7 @@ ScrollView {
                         wrapMode: Text.WordWrap
                         text: parent.shaped ? root.t("dashboard.quick_rtl_on") : root.t("dashboard.quick_rtl_off")
                         font.pixelSize: 11
-                        color: parent.shaped ? clrAccentCyan : "#F59E0B"
+                        color: parent.shaped ? clrAccentCyan : Theme.statusWarning
                     }
                 }
             }
@@ -658,6 +576,7 @@ ScrollView {
                 }
                 Item { Layout.fillWidth: true }
                 Button {
+                    Accessible.name: root.t("dashboard.notices_dismiss")
                     id: btnDismissNotices
                     flat: true
                     implicitHeight: 24
@@ -781,65 +700,20 @@ ScrollView {
                     width: parent.width
                     spacing: 12
 
-                Button {
+                PrimaryButton {
                     Layout.fillWidth: true
                     Layout.preferredHeight: Theme.heightPrimaryCTA
-                    topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
                     enabled: Boolean(appBackend && appBackend.gamePath && !appBackend.isBusy)
-                    scale: down ? 0.98 : (hovered ? 1.01 : 1.0)
-                    Behavior on scale { NumberAnimation { duration: 120 } }
-                    onClicked: {
-                        if (appBackend) appBackend.startLocalization();
-                    }
-
-                    background: Rectangle {
-                        radius: Theme.radiusControl
-                        color: {
-                            if (!parent.enabled) return Theme.isDark ? "#232A3B" : "#CBD5E1";
-                            if (Theme.isNeon) {
-                                return parent.down ? Theme.accentAlpha(0.45) : (parent.hovered ? Theme.accentAlpha(0.35) : Theme.accentAlpha(0.25));
-                            }
-                            return parent.down ? Theme.accentSolid : (parent.hovered ? Theme.accentHover : Theme.accentSolid);
-                        }
-                        border.color: {
-                            if (!parent.enabled) return "transparent";
-                            if (Theme.isNeon) return parent.hovered ? Theme.accentHover : Theme.accentAlpha(0.8);
-                            return "transparent";
-                        }
-                        border.width: Theme.isNeon ? 1.5 : 0
-                        opacity: parent.enabled ? 1.0 : 0.5
-                        Behavior on color { ColorAnimation { duration: 120 } }
-                    }
-
-                    contentItem: RowLayout {
-                        spacing: 10
-                        anchors.centerIn: parent
-                        Icon {
-                            glyph: (appBackend && appBackend.isBusy) ? Icons.refreshCw : Icons.rocket
-                            size: 18
-                            color: {
-                                if (!parent.parent.enabled) return Theme.textMuted;
-                                if (Theme.isNeon) return Theme.textPrimary;
-                                return Theme.accentContrastText;
-                            }
-                        }
-                        Text {
-                            text: (appBackend && appBackend.isBusy)
-                                  ? root.t("dashboard.translating_status")
-                                  : root.t("dashboard.start_translation_btn")
-                            font.pixelSize: 15
-                            font.bold: true
-                            font.letterSpacing: 0.5
-                            color: {
-                                if (!parent.parent.enabled) return Theme.textMuted;
-                                if (Theme.isNeon) return Theme.textPrimary;
-                                return Theme.accentContrastText;
-                            }
-                        }
-                    }
+                    busy: Boolean(appBackend && appBackend.isBusy)
+                    iconGlyph: Icons.rocket
+                    text: (appBackend && appBackend.isBusy)
+                          ? root.t("dashboard.translating_status")
+                          : root.t("dashboard.start_translation_btn")
+                    onClicked: { if (appBackend) appBackend.startLocalization(); }
                 }
 
                 Button {
+                    Accessible.name: root.t("dashboard.stop_btn")
                     Layout.preferredWidth: 150
                     Layout.preferredHeight: Theme.heightPrimaryCTA
                     topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
@@ -851,19 +725,25 @@ ScrollView {
                     }
                     background: Rectangle {
                         radius: Theme.radiusControl
-                        color: parent.hovered ? Qt.rgba(244/255, 63/255, 94/255, 0.22) : Qt.rgba(244/255, 63/255, 94/255, 0.12)
+                        color: parent.hovered ? Theme.dangerAlpha(0.22) : Theme.dangerAlpha(0.12)
                         border.color: Theme.statusDanger
                         border.width: 1
                     }
-                    contentItem: RowLayout {
-                        spacing: 8
-                        anchors.centerIn: parent
-                        Icon { glyph: Icons.square; size: 14; color: Theme.statusDanger }
-                        Text {
-                            text: root.t("dashboard.stop_btn")
-                            font.pixelSize: 14
-                            font.bold: true
-                            color: Theme.statusDanger
+                    contentItem: Item {
+                        implicitWidth: stopRow.implicitWidth
+                        implicitHeight: stopRow.implicitHeight
+
+                        RowLayout {
+                            id: stopRow
+                            spacing: 8
+                            anchors.centerIn: parent
+                            Icon { glyph: Icons.square; size: 14; color: Theme.statusDanger }
+                            Text {
+                                text: root.t("dashboard.stop_btn")
+                                font.pixelSize: 14
+                                font.bold: true
+                                color: Theme.statusDanger
+                            }
                         }
                     }
                 }
@@ -871,6 +751,7 @@ ScrollView {
 
                 // Review shortcut once a run produced results
                 Button {
+                    Accessible.name: root.t("dashboard.review_btn")
                     width: parent.width
                     height: 44
                     topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
@@ -882,21 +763,27 @@ ScrollView {
                         border.color: Theme.borderFocus
                         border.width: 1
                     }
-                    contentItem: RowLayout {
-                        spacing: 8
-                        anchors.centerIn: parent
-                        Icon { glyph: Icons.squarePen; size: 16; color: Theme.isDark ? Theme.accentHover : Theme.accentSolid }
-                        Text {
-                            text: {
-                                if (!editorBackend || !localeManager) return "";
-                                var c = editorBackend.counts;
-                                var problems = (c["rejected"] || 0) + (c["failed"] || 0) + (c["invalid"] || 0);
-                                var key = problems > 0 ? "dashboard.review_btn_problems" : "dashboard.review_btn";
-                                return root.t(key).replace("{count}", problems);
+                    contentItem: Item {
+                        implicitWidth: reviewRow.implicitWidth
+                        implicitHeight: reviewRow.implicitHeight
+
+                        RowLayout {
+                            id: reviewRow
+                            spacing: 8
+                            anchors.centerIn: parent
+                            Icon { glyph: Icons.squarePen; size: 16; color: Theme.isDark ? Theme.accentHover : Theme.accentSolid }
+                            Text {
+                                text: {
+                                    if (!editorBackend || !localeManager) return "";
+                                    var c = editorBackend.counts;
+                                    var problems = (c["rejected"] || 0) + (c["failed"] || 0) + (c["invalid"] || 0);
+                                    var key = problems > 0 ? "dashboard.review_btn_problems" : "dashboard.review_btn";
+                                    return root.t(key).replace("{count}", problems);
+                                }
+                                font.pixelSize: 13
+                                font.bold: true
+                                color: Theme.isDark ? Theme.accentHover : Theme.accentSolid
                             }
-                            font.pixelSize: 13
-                            font.bold: true
-                            color: Theme.isDark ? Theme.accentHover : Theme.accentSolid
                         }
                     }
                 }
@@ -906,60 +793,21 @@ ScrollView {
                         width: parent.width
                         spacing: 12
 
-                        Button {
+                        SecondaryButton {
                             Layout.fillWidth: true
-                            height: Theme.heightSecondary
-                            topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
                             enabled: Boolean(appBackend && appBackend.gamePath && !appBackend.isBusy)
-                            scale: down ? 0.98 : (hovered ? 1.01 : 1.0)
-                            Behavior on scale { NumberAnimation { duration: 120 } }
-                            onClicked: {
-                                if (appBackend) appBackend.exportPatchPackage();
-                            }
-                            background: Rectangle {
-                                radius: Theme.radiusControl
-                                color: parent.hovered ? Theme.surfaceHover : Theme.surfaceControl
-                                border.color: parent.hovered ? Theme.borderFocus : Theme.borderControl
-                                border.width: 1
-                            }
-                            contentItem: RowLayout {
-                                spacing: 8
-                                anchors.centerIn: parent
-                                Icon { glyph: Icons.packageBox; size: 15; color: parent.parent.enabled ? (parent.parent.hovered ? Theme.textPrimary : Theme.accentSolid) : Theme.textMuted }
-                                Text {
-                                    text: root.t("dashboard.export_patch_btn")
-                                    font.pixelSize: 13
-                                    font.bold: true
-                                    color: parent.parent.enabled ? (parent.parent.hovered ? Theme.textPrimary : Theme.accentSolid) : Theme.textMuted
-                                }
-                            }
+                            iconGlyph: Icons.packageBox
+                            iconSize: 15
+                            text: root.t("dashboard.export_patch_btn")
+                            onClicked: { if (appBackend) appBackend.exportPatchPackage(); }
                         }
 
-                        Button {
-                            height: Theme.heightSecondary
+                        SecondaryButton {
                             Layout.preferredWidth: 160
-                            topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
-                            scale: down ? 0.98 : (hovered ? 1.01 : 1.0)
-                            Behavior on scale { NumberAnimation { duration: 120 } }
-                            onClicked: {
-                                if (appBackend) appBackend.openPatchFolder();
-                            }
-                            background: Rectangle {
-                                radius: Theme.radiusControl
-                                color: parent.hovered ? Theme.surfaceHover : Theme.surfaceControl
-                                border.color: parent.hovered ? Theme.borderFocus : Theme.borderControl
-                                border.width: 1
-                            }
-                            contentItem: RowLayout {
-                                spacing: 6
-                                anchors.centerIn: parent
-                                Icon { glyph: Icons.folderOpen; size: 15; color: parent.parent.hovered ? Theme.textPrimary : Theme.textSecondary }
-                                Text {
-                                    text: root.t("dashboard.open_patch_folder")
-                                    font.pixelSize: 12
-                                    color: parent.parent.hovered ? Theme.textPrimary : Theme.textSecondary
-                                }
-                            }
+                            iconGlyph: Icons.folderOpen
+                            iconSize: 15
+                            text: root.t("dashboard.open_patch_folder")
+                            onClicked: { if (appBackend) appBackend.openPatchFolder(); }
                         }
                     }
                 }

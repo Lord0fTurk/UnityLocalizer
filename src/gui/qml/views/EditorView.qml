@@ -41,7 +41,7 @@ Item {
     function statusColor(status) {
         if (status === "accepted") return clrSuccess;
         if (status === "edited") return clrAccent;
-        if (status === "repaired") return "#A855F7";
+        if (status === "repaired") return Theme.statusRepaired;
         if (status === "rejected" || status === "invalid") return clrError;
         if (status === "failed") return clrWarn;
         return clrTxtDim;
@@ -106,6 +106,7 @@ Item {
         id: tool
         property string glyph: ""
         property string label: ""
+        Accessible.name: label
         implicitHeight: 32
         implicitWidth: toolRow.implicitWidth + 28
         topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
@@ -169,6 +170,24 @@ Item {
 
             ToolButton {
                 Layout.alignment: Qt.AlignVCenter
+                glyph: Icons.trash2
+                label: root.tr("editor.exclude_btn")
+                visible: root.hasSession && editorBackend.statusFilter !== "excluded" && editorBackend.matchCount > 0
+                implicitHeight: Theme.heightSecondary
+                onClicked: { root.commit(); editorBackend.excludeShown(); }
+            }
+
+            ToolButton {
+                Layout.alignment: Qt.AlignVCenter
+                glyph: Icons.undo2
+                label: root.tr("editor.include_btn")
+                visible: root.hasSession && editorBackend.statusFilter === "excluded" && editorBackend.matchCount > 0
+                implicitHeight: Theme.heightSecondary
+                onClicked: { root.commit(); editorBackend.includeShown(); }
+            }
+
+            ToolButton {
+                Layout.alignment: Qt.AlignVCenter
                 glyph: Icons.replace
                 label: root.tr("editor.replace_btn")
                 visible: root.hasSession
@@ -177,10 +196,11 @@ Item {
             }
 
             Button {
+                Accessible.name: root.tr("editor.save_btn")
                 Layout.alignment: Qt.AlignVCenter
                 implicitHeight: Theme.heightSecondary
                 topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
-                enabled: root.hasSession && editorBackend.shippableCount > 0
+                enabled: root.hasSession && (editorBackend.shippableCount > 0 || (editorBackend.counts.excluded || 0) > 0)
                 opacity: enabled ? 1.0 : 0.45
                 scale: down ? 0.97 : (hovered ? 1.02 : 1.0)
                 Behavior on scale { NumberAnimation { duration: 100 } }
@@ -212,6 +232,41 @@ Item {
             }
         }
 
+        // Source chips: which harvest channel the texts came from (only when more than one is known)
+        Flow {
+            Layout.fillWidth: true
+            spacing: 6
+            visible: root.hasSession && editorBackend.sources.length > 1
+
+            Repeater {
+                model: editorBackend ? [{ key: "", count: editorBackend.totalCount }].concat(editorBackend.sources) : []
+                delegate: Rectangle {
+                    readonly property bool active: editorBackend && editorBackend.sourceFilter === modelData.key
+                    height: Theme.heightBadge; radius: Theme.radiusBadge
+                    width: sourceChipLabel.implicitWidth + 20
+                    color: active ? root.tint(clrAccent, 0.2) : clrCard
+                    border.color: active ? clrAccent : clrCardBorder; border.width: 1
+
+                    Label {
+                        id: sourceChipLabel
+                        anchors.centerIn: parent
+                        text: (modelData.key === "" ? root.tr("editor.source_all")
+                                                    : root.tr(modelData.labelKey, modelData.key))
+                              + " (" + modelData.count + ")"
+                        font.pixelSize: 11
+                        font.bold: active
+                        color: active ? clrAccent : clrTxt2
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: { root.commit(); editorBackend.setSourceFilter(modelData.key); }
+                    }
+                }
+            }
+        }
+
         // Status filter chips & search
         RowLayout {
             Layout.fillWidth: true
@@ -232,7 +287,8 @@ Item {
                         { key: "warnings", label: root.tr("editor.filter_warnings") },
                         { key: "repaired", label: root.tr("editor.status_repaired") },
                         { key: "accepted", label: root.tr("editor.status_accepted") },
-                        { key: "unchanged", label: root.tr("editor.status_unchanged") }
+                        { key: "unchanged", label: root.tr("editor.status_unchanged") },
+                        { key: "excluded", label: root.tr("editor.status_excluded") }
                     ]
                     delegate: Rectangle {
                         readonly property bool active: editorBackend && editorBackend.statusFilter === modelData.key
@@ -306,7 +362,7 @@ Item {
             Layout.fillHeight: true
             Layout.minimumHeight: 120
             radius: Theme.radiusCard
-            color: Theme.isDark ? "#080C13" : Theme.surfaceControl
+            color: Theme.surfaceInset
             border.color: clrCardBorder
             border.width: 1
 
@@ -359,7 +415,7 @@ Item {
                                 horizontalAlignment: Text.AlignHCenter
                                 elide: Text.ElideRight
                                 text: root.tr("editor.status_" + modelData.status, modelData.status)
-                                font.pixelSize: 10
+                                font.pixelSize: 11
                                 font.bold: true
                                 color: root.statusColor(modelData.status)
                             }
@@ -431,6 +487,8 @@ Item {
 
             component PageButton: Button {
                 property string glyph: ""
+                property string pageName: ""
+                Accessible.name: pageName
                 implicitWidth: 34; implicitHeight: 28
                 topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
                 opacity: enabled ? 1.0 : 0.4
@@ -448,8 +506,8 @@ Item {
                 }
             }
 
-            PageButton { glyph: "«"; enabled: editorBackend.page > 1; onClicked: root.goPage(1) }
-            PageButton { glyph: "‹"; enabled: editorBackend.page > 1; onClicked: root.goPage(editorBackend.page - 1) }
+            PageButton { glyph: "«"; pageName: root.tr("editor.page_first"); enabled: editorBackend.page > 1; onClicked: root.goPage(1) }
+            PageButton { glyph: "‹"; pageName: root.tr("editor.page_prev"); enabled: editorBackend.page > 1; onClicked: root.goPage(editorBackend.page - 1) }
             Label {
                 text: root.tr("editor.page_label")
                         .replace("{page}", editorBackend.page)
@@ -457,8 +515,8 @@ Item {
                 font.pixelSize: 12
                 color: clrTxt2
             }
-            PageButton { glyph: "›"; enabled: editorBackend.page < editorBackend.pageCount; onClicked: root.goPage(editorBackend.page + 1) }
-            PageButton { glyph: "»"; enabled: editorBackend.page < editorBackend.pageCount; onClicked: root.goPage(editorBackend.pageCount) }
+            PageButton { glyph: "›"; pageName: root.tr("editor.page_next"); enabled: editorBackend.page < editorBackend.pageCount; onClicked: root.goPage(editorBackend.page + 1) }
+            PageButton { glyph: "»"; pageName: root.tr("editor.page_last"); enabled: editorBackend.page < editorBackend.pageCount; onClicked: root.goPage(editorBackend.pageCount) }
         }
 
         // Detail of the selected row
@@ -497,7 +555,7 @@ Item {
                             id: detailStatus
                             anchors.centerIn: parent
                             text: root.tr("editor.status_" + (root.selectedRow.status || ""), root.selectedRow.status || "")
-                            font.pixelSize: 10
+                            font.pixelSize: 11
                             font.bold: true
                             color: root.statusColor(root.selectedRow.status || "")
                         }

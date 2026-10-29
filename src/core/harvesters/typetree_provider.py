@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
-"""Optional TypeTree generator for player builds that ship without serialized TypeTrees.
+"""TypeTree generator for player builds that ship without serialized TypeTrees.
 
 Release ``level*``/``sharedassets*`` files normally strip MonoBehaviour TypeTrees,
-so UnityPy can only read their base fields. When the optional native package
-``TypeTreeGeneratorAPI`` is installed, script layouts are rebuilt from the game's
-own assemblies (Mono ``Managed/*.dll`` or IL2CPP ``GameAssembly.dll`` + metadata).
-Without it the harvester transparently falls back to raw length-prefixed scanning.
+so UnityPy can only read their base fields. With the native package
+``TypeTreeGeneratorAPI`` (installed through ``UnityPy[ttgen]``), script layouts are
+rebuilt from the game's own assemblies (Mono ``Managed/*.dll`` or IL2CPP
+``GameAssembly.dll`` + metadata), which turns the raw length-prefixed scan into
+field-aware reading. When the generator is missing or cannot load a game (for example
+IL2CPP metadata v39) the harvester transparently falls back to the raw scan.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ import logging
 from typing import Any
 
 from src.core.engine_profiler import UnityGameProfile
+from src.core.harvesters.typetree_guard import install_array_guard
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +63,9 @@ def create_typetree_generator(profile: UnityGameProfile) -> Any | None:
     try:
         _load_assemblies(generator, profile)
     except Exception as exc:  # native loader raises heterogeneous errors (encrypted metadata, bad PE)
-        logger.warning("TypeTree generator could not load game assemblies: %s", exc)
+        backend = f"IL2CPP metadata v{profile.metadata_version}" if profile.is_il2cpp else "Mono assemblies"
+        logger.warning("TypeTree generator could not load the game's %s (%s); using raw string scanning", backend, exc)
         return None
+    install_array_guard()
     logger.info("TypeTree generator ready for Unity %s", profile.unity_version)
     return generator

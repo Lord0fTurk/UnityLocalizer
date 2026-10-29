@@ -19,7 +19,10 @@ from PyQt6.QtGui import QDesktopServices, QGuiApplication
 from src.core.game_launcher import LaunchError, launch_command
 from src.core.engine_profiler import EngineProfiler, UnityGameProfile
 from src.core.harvesters.asset_harvester import AssetHarvester
+from src.core.harvesters.asset_worker import scan_assets_isolated
 from src.core.harvesters.assembly_harvester import AssemblyHarvester
+from src.core.harvesters.harvest_stats import HarvestStats
+from src.core.harvesters.memory_guard import MemoryGuard, format_size
 from src.core.harvesters.metadata_harvester import MetadataHarvester
 from src.core.harvesters.typetree_provider import create_typetree_generator
 from src.core.hook_manager.font_bootstrap import FontBootstrap
@@ -678,11 +681,26 @@ class AppBackend(QObject):
             return
         self.add_log("info", "toolbox.scanning_assets")
         self._harvest_in_background(
-            lambda: AssetHarvester.harvest_data_dir(
-                data_dir, typetree_generator=create_typetree_generator(profile), progress=self._handle_progress
-            ),
+            lambda: self._scan_assets(profile, data_dir),
             "toolbox.assets_harvested_count", "toolbox.assets_harvest_error",
         )
+
+    def _scan_assets(self, profile: UnityGameProfile, data_dir: Path) -> list[str]:
+        """Scan every asset file; files too large for the free memory are skipped and reported."""
+        stats = HarvestStats()
+        guard_on = bool(self.config.get("harvest_memory_guard", True))
+        if bool(self.config.get("harvest_isolated", True)):
+            strings = scan_assets_isolated(profile, memory_guard=guard_on, progress=self._handle_progress, stats=stats)
+        else:
+            strings = AssetHarvester.harvest_data_dir(
+                data_dir, typetree_generator=create_typetree_generator(profile), progress=self._handle_progress,
+                stats=stats, memory_guard=MemoryGuard(enabled=guard_on),
+            )
+        skipped = stats.files_skipped_for_memory
+        if skipped:
+            names = ", ".join(f"{f.name} ({format_size(f.disk_bytes)})" for f in skipped[:3])
+            self._warn("warning", "pipeline.harvest_warn_oversized", count=len(skipped), names=names)
+        return strings
 
     @pyqtSlot()
     def harvestStreamingAssets(self) -> None:
@@ -782,6 +800,9 @@ class AppBackend(QObject):
             self._post_notice("info", "dashboard.proton_hint")
         args = (profile.is_64bit, profile.is_il2cpp, profile.metadata_version, profile.is_linux_build)
         if not HookInstaller.needs_install(self._game_dir(), *args):
+            HookInstaller.apply_runtime_fixes(
+                self._game_dir(), profile.unity_version, profile.is_il2cpp, self._handle_progress
+            )
             return
         if not profile.architecture_certain:
             self._warn("warning", "dashboard.bitness_uncertain")

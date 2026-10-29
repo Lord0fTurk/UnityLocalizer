@@ -68,7 +68,7 @@ Rectangle {
                     anchors.centerIn: parent
                     text: card.badge
                     textFormat: Text.PlainText
-                    font.pixelSize: 10
+                    font.pixelSize: 11
                     font.bold: true
                     color: Theme.isDark ? Theme.accentHover : Theme.accentSolid
                 }

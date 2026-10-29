@@ -9,8 +9,11 @@ from pathlib import Path
 
 from src.core.engine_profiler import EngineProfiler, UnityGameProfile
 from src.core.harvesters.anti_mod import MAX_REPORTED_NAMES, find_bepinex_removers
-from src.core.harvesters.harvest_collector import HarvestCollector, HarvestResult
+from src.core.harvesters.harvest_collector import CHANNELS, HarvestCollector, HarvestResult
 from src.core.harvesters.harvest_stats import HarvestStats
+from src.core.harvesters.data_lines import split_data_lines
+from src.core.harvesters.ignore_rules import EMPTY_RULES, IgnoreRules, filter_ignored, parse_rules
+from src.core.harvesters.memory_guard import format_size
 from src.core.hook_layout import dictionary_path, substitutions_path
 from src.core.hook_manager.font_bootstrap import FontBootstrap
 from src.core.hook_manager.system_fonts import default_system_font
@@ -108,7 +111,7 @@ class UnityTranslationPipeline:
             bilingual_template=ctx.bilingual_template,
         )
         written = AutoTranslatorParser().apply_translations(
-            dictionary_path(ctx.game_root, ctx.target_lang), deployed
+            dictionary_path(ctx.game_root, ctx.target_lang), deployed, remove_keys=session.excluded()
         )
         glossary = getattr(self.tm, "glossary", None)
         if glossary and glossary.terms:
@@ -121,7 +124,10 @@ class UnityTranslationPipeline:
             )
         edits = session.edited()
         self.tm.cache.set_many(edits, ctx.source_lang, ctx.target_lang, ctx.engine)
-        logger.info("Saved review: %d shippable rows, %d manual edits", len(deployed), len(edits))
+        logger.info(
+            "Saved review: %d shippable rows, %d manual edits, %d left out",
+            len(deployed), len(edits), len(session.excluded()),
+        )
         return written
 
     def _report(self, event: ProgressEvent) -> None:
@@ -164,7 +170,7 @@ class UnityTranslationPipeline:
         self.last_harvest_stats = None
         profile = EngineProfiler.profile_game(game_dir)
         self._warn_if_anti_mod(profile)
-        harvest = HarvestCollector(self._report, resolve_source_language(source_lang)).collect(profile, cancel)
+        harvest = self._collector(resolve_source_language(source_lang)).collect(profile, cancel)
         self.last_harvest_count = len(harvest.strings)
         logger.info("Unified harvest: %d unique strings", len(harvest.strings))
         if not harvest.strings:
@@ -173,6 +179,8 @@ class UnityTranslationPipeline:
 
         harvest, source_lang = self._resolve_source(profile, harvest, source_lang, target_lang, engine, cancel)
         self._drop_foreign_script(harvest, source_lang)
+        self._split_data_lines(harvest)
+        self._drop_ignored(harvest, self._ignore_rules())
         self.last_harvest_stats = harvest.stats
         self._report_harvest_coverage(harvest.stats)
         concrete_source = resolve_source_language(source_lang)
@@ -194,7 +202,7 @@ class UnityTranslationPipeline:
             bilingual_template=bilingual_template,
             streaming_files=tuple(loose_files),
         )
-        self.last_session = ReviewSession.from_report(report, context)
+        self.last_session = ReviewSession.from_report(report, context, sources=harvest.sources)
         deployed = prepare_for_display(
             report.translations,
             target_lang,
@@ -228,7 +236,7 @@ class UnityTranslationPipeline:
         language_dependent = bool(harvest.streaming_files) or harvest.stats.language_sensitive
         needs_reharvest = language_dependent and base_language(detected) != DEFAULT_SOURCE_LANGUAGE
         if needs_reharvest:
-            harvest = HarvestCollector(self._report, detected).collect(profile, cancel)
+            harvest = self._collector(detected).collect(profile, cancel)
             self.last_harvest_count = len(harvest.strings)
         return harvest, detected
 
@@ -250,6 +258,55 @@ class UnityTranslationPipeline:
         harvest.strings = result.kept
         self.last_harvest_count = len(result.kept)
         emit(self._report, "pipeline.foreign_text_removed", count=result.removed, language=language)
+
+    def _skipped_channels(self) -> frozenset[str]:
+        """Harvest channels the user switched off in the settings (all are on by default)."""
+        config = getattr(self.tm, "config", None)
+        if config is None:
+            return frozenset()
+        return frozenset(name for name in CHANNELS if not bool(config.get(f"harvest_{name}", True)))
+
+    def _collector(self, source_lang: str) -> HarvestCollector:
+        """A collector for the given source language that honours the channel and memory-guard switches."""
+        config = getattr(self.tm, "config", None)
+        guard = True if config is None else bool(config.get("harvest_memory_guard", True))
+        isolated = False if config is None else bool(config.get("harvest_isolated", True))
+        return HarvestCollector(
+            self._report, source_lang, skip_channels=self._skipped_channels(), memory_guard=guard, isolated=isolated
+        )
+
+    def _split_data_lines(self, harvest: HarvestResult) -> None:
+        """Replace script data lines (``key="a|b"``) by the readable words inside them."""
+        config = getattr(self.tm, "config", None)
+        if config is not None and not bool(config.get("harvest_split_data_lines", True)):
+            return
+        result = split_data_lines(harvest.strings)
+        if not result.lines_removed:
+            return
+        for segment, line in result.origin.items():
+            harvest.sources.setdefault(segment, harvest.sources.get(line, "assets"))
+        harvest.strings = result.strings
+        self.last_harvest_count = len(result.strings)
+        emit(self._report, "pipeline.data_lines_split", count=result.lines_removed, words=result.segments_added)
+
+    def _ignore_rules(self) -> IgnoreRules:
+        """Built-in Unity placeholders plus the user's ignore list, read from the settings."""
+        config = getattr(self.tm, "config", None)
+        if config is None:
+            return EMPTY_RULES
+        return parse_rules(
+            str(config.get("ignore_rules", "") or ""),
+            engine_placeholders=bool(config.get("ignore_engine_placeholders", True)),
+        )
+
+    def _drop_ignored(self, harvest: HarvestResult, rules: IgnoreRules) -> None:
+        """Leave out strings matching the ignore rules so they are never sent to an engine."""
+        result = filter_ignored(harvest.strings, rules)
+        if not result.removed:
+            return
+        harvest.strings = result.kept
+        self.last_harvest_count = len(result.kept)
+        emit(self._report, "pipeline.ignored_text_removed", count=result.removed)
 
     @staticmethod
     def _table_locale_hint(guess: str | None, stats: HarvestStats) -> str | None:
@@ -282,6 +339,12 @@ class UnityTranslationPipeline:
                 self._report, "pipeline.harvest_warn_raw_scan",
                 count=stats.raw_scanned_objects, files=len(stats.raw_scanned_files),
                 names=_names(stats.raw_scanned_files),
+            )
+        oversized = stats.files_skipped_for_memory
+        if oversized:
+            emit(
+                self._report, "pipeline.harvest_warn_oversized", count=len(oversized),
+                names=_names([f"{f.name} ({format_size(f.disk_bytes)})" for f in oversized]),
             )
         if stats.encrypted_code:
             emit(self._report, "pipeline.harvest_warn_code_encrypted")

@@ -62,7 +62,10 @@ def _pipeline() -> tuple[Any, list[Any]]:
 class _FakeCollector:
     calls: list[str] = []
 
-    def __init__(self, progress: object, source_lang: str = "en") -> None:
+    def __init__(
+        self, progress: object, source_lang: str = "en", skip_channels: object = (), memory_guard: bool = True,
+        isolated: bool = False,
+    ) -> None:
         self.source_lang = source_lang
 
     def collect(self, profile: object, cancel: object = None) -> HarvestResult:

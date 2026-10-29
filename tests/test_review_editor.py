@@ -33,6 +33,7 @@ def test_rows_put_problems_first_and_keep_rejected_candidate(tmp_path: Path) -> 
     assert session.rows[0].issues == [("missing", ["{0}"])]
     assert session.counts() == {
         "accepted": 1, "repaired": 0, "edited": 0, "rejected": 1, "invalid": 0, "failed": 1, "unchanged": 1,
+        "excluded": 0,
     }
 
 

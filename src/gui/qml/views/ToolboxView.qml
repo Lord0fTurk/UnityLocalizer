@@ -152,6 +152,7 @@ ScrollView {
 
                         // Preset 1: Default Arial SDF
                         Button {
+                            Accessible.name: root.t("toolbox.font_mode_default")
                             id: btnPresetDefault
                             readonly property bool isSelected: fontCol.parent.activePreset === "default_arial"
                             Layout.fillWidth: true
@@ -193,6 +194,7 @@ ScrollView {
 
                         // Preset 2: Custom Font File
                         Button {
+                            Accessible.name: root.t("toolbox.font_mode_custom")
                             id: btnPresetCustom
                             readonly property bool isSelected: fontCol.parent.activePreset === "custom_ttf"
                             Layout.fillWidth: true
@@ -234,6 +236,7 @@ ScrollView {
 
                         // Preset 3: System Font Override
                         Button {
+                            Accessible.name: root.t("toolbox.font_mode_system")
                             id: btnPresetSystem
                             readonly property bool isSelected: fontCol.parent.activePreset === "system_font"
                             Layout.fillWidth: true
@@ -309,6 +312,7 @@ ScrollView {
                         }
 
                         Button {
+                            Accessible.name: root.t("toolbox.font_custom_browse_btn")
                             id: btnBrowseFont
                             Layout.preferredHeight: Theme.heightInput
                             topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
@@ -416,6 +420,7 @@ ScrollView {
 
                 // Apply Font CTA Button (DESIGN.md §3.2 PrimaryCTA: radius 6px, height 42px)
                 Button {
+                    Accessible.name: root.tBtn("toolbox.font_apply_btn")
                     id: btnApplyFont
                     width: parent.width
                     implicitHeight: 44
@@ -427,7 +432,7 @@ ScrollView {
                     background: Rectangle {
                         radius: Theme.radiusControl
                         color: {
-                            if (!btnApplyFont.enabled) return Theme.isDark ? "#232A3B" : "#CBD5E1";
+                            if (!btnApplyFont.enabled) return Theme.surfaceDisabled;
                             if (Theme.isNeon) {
                                 return btnApplyFont.down ? Theme.accentAlpha(0.45) : (btnApplyFont.hovered ? Theme.accentAlpha(0.35) : Theme.accentAlpha(0.25));
                             }
@@ -544,6 +549,7 @@ ScrollView {
 
                     // Uninstall BepInEx Button (Destructive - DESIGN.md §3.3)
                     Button {
+                        Accessible.name: root.t("toolbox.uninstall_bepinex_btn")
                         id: btnUninstallBep
                         implicitHeight: Theme.heightSecondary
                         topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
@@ -652,6 +658,7 @@ ScrollView {
 
                     // Harvester Action Button 1: Metadata
                     Button {
+                        Accessible.name: root.t("toolbox.harvest_metadata_btn")
                         id: btnHarvMeta
                         implicitHeight: Theme.heightSecondary
                         topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
@@ -688,6 +695,7 @@ ScrollView {
 
                     // Harvester Action Button 2: Assembly
                     Button {
+                        Accessible.name: root.t("toolbox.harvest_assembly_btn")
                         id: btnHarvAsm
                         implicitHeight: Theme.heightSecondary
                         topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
@@ -724,6 +732,7 @@ ScrollView {
 
                     // Harvester Action Button 3: StreamingAssets
                     Button {
+                        Accessible.name: root.t("toolbox.harvest_streaming_btn")
                         id: btnHarvStream
                         implicitHeight: Theme.heightSecondary
                         topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
@@ -760,6 +769,7 @@ ScrollView {
 
                     // Harvester Action Button 4: Assets
                     Button {
+                        Accessible.name: root.tBtn("toolbox.harvest_assets_btn")
                         id: btnHarvAssets
                         implicitHeight: Theme.heightSecondary
                         topInset: 0; bottomInset: 0; leftInset: 0; rightInset: 0; padding: 0
